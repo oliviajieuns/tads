@@ -109,6 +109,7 @@ def sft_one_epoch(
     epoch: int,
     logger: Optional[logging.Logger] = None,
     log_every: int = 50,
+    verifier: Optional[object] = None,
 ) -> float:
     """Run one SFT epoch and return the mean per-step loss."""
     if logger is None:
@@ -227,6 +228,21 @@ def sft_one_epoch(
             # safer with bitsandbytes 8-bit optimisers.
             optimizer.zero_grad(set_to_none=True)
             n_boundaries_seen += 1
+
+            # Theorem 1 verifier hook — fires every N optimizer steps on
+            # rank 0 only (the verifier itself is the gatekeeper, see
+            # TheoremVerifier.active). Outside the verification path this
+            # is a no-op.
+            if verifier is not None:
+                try:
+                    verifier.step(
+                        model=model,
+                        lr=scheduler.get_last_lr()[0],
+                        epoch=epoch,
+                    )
+                except Exception as exc:
+                    # Verification must not crash the training run.
+                    logger.warning("Theorem verifier refresh failed: %s", exc)
             if verbose_step:
                 logger.info(
                     "SFT step optimizer.step done | rank=%d | step=%d | "

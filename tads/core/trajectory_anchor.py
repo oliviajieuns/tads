@@ -77,12 +77,21 @@ class TrajectoryAnchor:
         max_samples_for_pca: int = 2000,
         pca_batch_size: int = 4,
         device: str = "cuda",
+        track_sigma: bool = False,
     ):
         self.layer_idx = layer_idx
         self.layer_indices_spec: LayerSpec = layer_indices
         self.max_samples_for_pca = max_samples_for_pca
         self.pca_batch_size = pca_batch_size
         self.device = device
+
+        # Theorem 1 verification: when True, keep the previous covariance Σ_l
+        # per layer in host RAM so update() can report ‖Σ^(t+1)−Σ^(t)‖_F
+        # (assumption A1 measurement). Cost: L × H² fp32 floats on CPU.
+        # For 0.5B (L≈24, H=896) ≈80 MB; for 7B (L=32, H=4096) ≈2 GB —
+        # leave OFF unless explicitly running the App. F verification.
+        self.track_sigma = bool(track_sigma)
+        self.prev_sigma_by_layer: Dict[int, torch.Tensor] = {}
 
         # Resolved indices — filled in lazily on first update() so we can
         # use the model's actual layer count. Empty means "not yet resolved
@@ -93,6 +102,10 @@ class TrajectoryAnchor:
         self.lambda1_by_layer: Dict[int, float] = {}
         self.lambda2_by_layer: Dict[int, float] = {}
         self.gap_by_layer: Dict[int, float] = {}
+
+        # Last refresh's full per-layer measurement payload (Theorem 1 verifier
+        # reads this after every update() call). Populated by update().
+        self.last_measurement: Dict[str, Any] = {}
 
         # Legacy single-layer state (kept for backward compat).
         self.v: Optional[torch.Tensor] = None  # alias of v_by_layer for single-layer mode
@@ -155,6 +168,9 @@ class TrajectoryAnchor:
         dataset,
         seed: int = 42,
         epoch: int = 0,
+        global_step: Optional[int] = None,
+        lr: Optional[float] = None,
+        probe_seed_override: Optional[int] = None,
     ) -> Dict[str, float]:
         """Re-extract the anchor at the start of epoch ``t``.
 
@@ -167,8 +183,17 @@ class TrajectoryAnchor:
         the alignment direction toward the very samples that will then
         be SFT'd, an unintended coupling.
         """
+        # Theorem 1 verification uses a FIXED probe (same indices for all
+        # refresh points) so that Σ^(t+1) − Σ^(t) reflects ONLY the model
+        # drift, not probe resampling. Callers in that mode pass a stable
+        # ``probe_seed_override``; default behavior keeps the legacy per-epoch
+        # reshuffle so non-verification training is unaffected.
         g = torch.Generator()
-        g.manual_seed(seed + epoch * 100 + 1)
+        if probe_seed_override is not None:
+            g.manual_seed(int(probe_seed_override))
+        else:
+            g.manual_seed(seed + epoch * 100 + 1)
+        was_training = model.training
         n_total = len(dataset)
         n_use = min(self.max_samples_for_pca, n_total)
         perm = torch.randperm(n_total, generator=g).tolist()
@@ -237,6 +262,10 @@ class TrajectoryAnchor:
         new_v_by_layer: Dict[int, torch.Tensor] = {}
         new_l1: Dict[int, float] = {}
         new_l2: Dict[int, float] = {}
+        # Theorem 1 verification per-layer side-channel metrics.
+        delta_sigma_fro: Dict[int, float] = {}
+        sign_inner_prev: Dict[int, float] = {}
+        d_step: Dict[int, float] = {}
         n_used = 0
         for li in resolved_indices or []:
             delta_l = torch.cat(per_layer_deltas[li], dim=0)  # (N, H)
@@ -249,6 +278,33 @@ class TrajectoryAnchor:
             new_v_by_layer[li] = v_l
             new_l1[li] = pca["lambda_1"]
             new_l2[li] = pca["lambda_2"]
+
+            # Anchor drift d_l^(t) = ‖v_l^(t+1) − v_l^(t)‖ — verifier's
+            # left-hand side of the Theorem 1 bound. Computed here so the
+            # measurement is co-located with the v that produced it.
+            if li in self.v_by_layer:
+                d_step[li] = float(torch.norm(v_l - self.v_by_layer[li]).item())
+                sign_inner_prev[li] = float(torch.dot(v_l, self.v_by_layer[li]).item())
+            else:
+                d_step[li] = float("nan")
+                sign_inner_prev[li] = float("nan")
+
+            # ‖Σ^(t+1) − Σ^(t)‖_F — verifier's A1 measurement. We compute
+            # Σ = X^T X / N from the centred delta only when track_sigma is
+            # on (the host-RAM hit for storing prev Σ scales as L × H²; see
+            # __init__ docstring). When off, expose NaN so downstream code
+            # can still write a row.
+            if self.track_sigma:
+                centred = delta_l - delta_l.mean(dim=0, keepdim=True)
+                sigma_new = (centred.T @ centred) / max(1, centred.shape[0])
+                prev = self.prev_sigma_by_layer.get(li)
+                if prev is not None:
+                    delta_sigma_fro[li] = float(torch.norm(sigma_new - prev).item())
+                else:
+                    delta_sigma_fro[li] = float("nan")
+                self.prev_sigma_by_layer[li] = sigma_new
+            else:
+                delta_sigma_fro[li] = float("nan")
 
         # Stability: mean L2 distance between old and new v per layer.
         if self.is_fitted and set(new_v_by_layer.keys()) == set(self.v_by_layer.keys()):
@@ -294,6 +350,37 @@ class TrajectoryAnchor:
             self.lambda2_history = self.lambda2_history[drop:]
             self.gap_history = self.gap_history[drop:]
             self.stability_history = self.stability_history[drop:]
+
+        # Theorem 1 verifier reads `last_measurement` after each update().
+        # Per-layer rows are flat scalars (JSONL-friendly); anchor vectors
+        # are exposed by reference (the verifier dumps them to disk).
+        self.last_measurement = {
+            "global_step": global_step,
+            "epoch": epoch,
+            "lr": lr,
+            "n_samples_used": int(n_used),
+            "per_layer": {
+                int(li): {
+                    "lambda1": new_l1[li],
+                    "lambda2": new_l2[li],
+                    "gamma": new_l1[li] - new_l2[li],
+                    "delta_sigma_fro": delta_sigma_fro.get(li, float("nan")),
+                    "sign_inner_prev": sign_inner_prev.get(li, float("nan")),
+                    "d_step": d_step.get(li, float("nan")),
+                } for li in (resolved_indices or [])
+            },
+            # Anchors kept as a separate dict so the verifier can dump npy
+            # files step-by-step without re-running PCA.
+            "v_by_layer": {int(li): new_v_by_layer[li].clone()
+                           for li in (resolved_indices or [])},
+        }
+
+        # Restore the model's mode. update() flips to .eval() unconditionally;
+        # without this restore a step-level verification call inside the SFT
+        # loop would silently leave the model in eval mode for the rest of
+        # the epoch (gradient_checkpointing + dropout would also be off).
+        if was_training:
+            model.train()
 
         stats = {
             "lambda_1": self.lambda_1,

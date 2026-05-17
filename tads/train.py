@@ -86,6 +86,7 @@ from tads.core.run_layout import (
     save_cfg_snapshot,
     update_latest,
 )
+from tads.core.thm_verification import TheoremVerificationConfig, TheoremVerifier
 from tads.core.trajectory_anchor import TrajectoryAnchor
 from tads.core.utils import (
     clear_runtime_caches,
@@ -603,6 +604,28 @@ def main() -> None:
                 if is_main_process():
                     logger.warning("Could not restore metrics.json (%s)", e)
 
+    # ---------- Theorem 1 verifier (App. F) ----------
+    # Step-level anchor refresh + ‖ΔΣ‖_F / d^(t) / sign-inner dumping.
+    # No-op unless cfg.verification.enabled is true. Rank-0 only — anchor
+    # extraction is single-rank in the rest of the codebase and the
+    # step-level path inherits that contract.
+    verifier_cfg = TheoremVerificationConfig.from_cfg(cfg.get("verification"))
+    verifier: Optional[TheoremVerifier] = None
+    if verifier_cfg.enabled and method == "tads" and anchor is not None:
+        verifier = TheoremVerifier(
+            cfg=verifier_cfg,
+            anchor=anchor,
+            dataset=dataset,
+            output_dir=run_dir / verifier_cfg.output_subdir,
+            seed=seed,
+        )
+        if is_main_process():
+            verifier.open()
+            logger.info(
+                "Theorem 1 verifier ENABLED | output=%s",
+                run_dir / verifier_cfg.output_subdir,
+            )
+
     start_epoch = resume_epoch + 1
     if start_epoch > train_epochs:
         if is_main_process():
@@ -655,6 +678,7 @@ def main() -> None:
             device=device,
             epoch=epoch,
             logger=logger,
+            verifier=verifier,
         )
         elapsed = time.time() - t0
         metrics = {
@@ -820,6 +844,9 @@ def main() -> None:
         # code is masked by a generic collective failure on every worker.
         if use_ddp:
             dist.barrier()
+
+    if verifier is not None and is_main_process():
+        verifier.close()
 
     if is_main_process():
         logger.info("Training complete (%d epochs).", train_epochs)

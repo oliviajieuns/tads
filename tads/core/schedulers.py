@@ -49,3 +49,31 @@ def get_cosine_schedule_with_warmup(
         )
 
     return LambdaLR(optimizer, lr_lambda, last_epoch)
+
+
+def get_constant_schedule_with_warmup(
+    optimizer,
+    num_warmup_steps: int,
+    last_epoch: int = -1,
+) -> LambdaLR:
+    """Linear warmup → constant `base_lr` for the rest of training.
+
+    Theorem 1's assumption A1 (``‖ΔΣ‖_F ≤ C_Σ · η``) is most cleanly
+    verified when `η` is held FIXED across all measurement points so the
+    Σ-drift can be tested for *consistency* across refreshes rather than
+    for a regression slope under a varying schedule. Use this scheduler
+    for the App. F verification run; the standard cosine decay remains
+    the default for paper-matching SFT.
+
+    Args:
+        optimizer: torch / bitsandbytes optimizer.
+        num_warmup_steps: steps to linearly warm up from 0 → base_lr.
+            After this, the schedule returns 1.0 (i.e. base_lr) forever.
+        last_epoch: passed to LambdaLR for resuming.
+    """
+    def lr_lambda(current_step: int) -> float:
+        if current_step < num_warmup_steps:
+            return float(current_step) / float(max(1, num_warmup_steps))
+        return 1.0
+
+    return LambdaLR(optimizer, lr_lambda, last_epoch)

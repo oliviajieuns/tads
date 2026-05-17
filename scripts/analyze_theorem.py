@@ -61,44 +61,117 @@ def _by_layer(rows: List[Dict[str, Any]]) -> Dict[int, List[Dict[str, Any]]]:
 
 
 # ----------------------------------------------------------------- E2 (C_Σ)
-def fit_c_sigma(rows: List[Dict[str, Any]]) -> Dict[str, float]:
-    """Regress ‖ΔΣ‖_F = C_Σ · η_t through the origin, pooled over all
-    (layer, step) pairs where ΔΣ is finite."""
+def _is_constant_lr(lrs: np.ndarray, tol: float = 1e-3) -> bool:
+    """Return True if all (post-warmup) lr values are equal within tol.
+
+    Constant-lr schedule (warmup → flat) is the cleanest setting for
+    verifying A1 — ΔΣ / η should then be ≈ constant across refreshes,
+    and a slope regression is not applicable. The caller filters rows
+    to the post-warmup region before calling.
+    """
+    if lrs.size == 0:
+        return False
+    return float(np.nanstd(lrs) / max(np.nanmean(lrs), 1e-12)) < tol
+
+
+def fit_c_sigma(
+    rows: List[Dict[str, Any]],
+    *,
+    skip_warmup_optsteps: int = 0,
+) -> Dict[str, float]:
+    """Estimate C_Σ.
+
+    Two paths:
+      * **Cosine / varying lr** — fit ‖ΔΣ‖_F = C_Σ · η_t through the origin,
+        pooled over all (layer, step) pairs; report slope + R².
+      * **Constant lr after warmup** — A1 becomes ‖ΔΣ‖_F / η ≈ constant;
+        report mean(ratio) as C_Σ and CV as the dispersion measure.
+        PASS criterion is then `CV < 0.5` (set later in _verdicts).
+
+    Args:
+        rows: flat list of (step, layer) metric dicts.
+        skip_warmup_optsteps: drop rows with global_step ≤ this value to
+            keep the analysis inside the constant-lr region.
+    """
     xs, ys = [], []
     for r in rows:
         d = r.get("delta_sigma_fro")
         lr = r.get("lr")
         if d is None or lr is None:
             continue
-        if not np.isfinite(d) or not np.isfinite(lr):
+        if not (np.isfinite(d) and np.isfinite(lr)):
+            continue
+        if int(r.get("global_step", 0)) <= skip_warmup_optsteps:
             continue
         xs.append(float(lr))
         ys.append(float(d))
     x = np.array(xs); y = np.array(ys)
     if x.size == 0:
-        return {"C_sigma": float("nan"), "r2": float("nan"), "n": 0}
-    # Through-origin least squares: slope = Σxy / Σx²
+        return {
+            "C_sigma": float("nan"),
+            "r2": float("nan"),
+            "n": 0,
+            "mode": "empty",
+        }
+
+    if _is_constant_lr(x):
+        # Constant-lr branch: A1 ⇔ ratio_const across all rows.
+        # C_Σ_est = mean(ΔΣ / η);  CV = std / mean.
+        ratios = y / x
+        mean_r = float(np.nanmean(ratios))
+        std_r = float(np.nanstd(ratios))
+        cv = std_r / max(abs(mean_r), 1e-12)
+        return {
+            "C_sigma": mean_r,
+            "cv": cv,
+            "lr_const": float(np.nanmean(x)),
+            "n": int(x.size),
+            "mode": "constant",
+            "x": x, "y": y,
+        }
+
+    # Cosine / varying-lr branch: through-origin least squares.
     slope = float((x * y).sum() / (x * x).sum())
     y_pred = slope * x
     ss_res = float(((y - y_pred) ** 2).sum())
     ss_tot = float(((y - y.mean()) ** 2).sum())
     r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else float("nan")
-    return {"C_sigma": slope, "r2": r2, "n": int(x.size),
-            "x": x, "y": y}
+    return {
+        "C_sigma": slope,
+        "r2": r2,
+        "n": int(x.size),
+        "mode": "regression",
+        "x": x, "y": y,
+    }
 
 
 def plot_F2(fit: Dict[str, Any], out_dir: Path) -> None:
-    if fit["n"] == 0:
+    if fit.get("n", 0) == 0:
         return
     x = fit["x"]; y = fit["y"]
     fig, ax = plt.subplots(figsize=(5, 4))
-    ax.scatter(x, y, s=8, alpha=0.4, label="measurements")
-    xs = np.linspace(0, x.max() * 1.05, 50)
-    ax.plot(xs, fit["C_sigma"] * xs, "r-",
-            label=f"C_Σ={fit['C_sigma']:.3g}, R²={fit['r2']:.3f}")
-    ax.set_xlabel(r"$\eta_t$ (learning rate)")
-    ax.set_ylabel(r"$\|\Sigma^{(t+1)} - \Sigma^{(t)}\|_F$")
-    ax.set_title("E2 — Assumption A1: $\\Sigma$-drift vs lr")
+
+    if fit.get("mode") == "constant":
+        # Constant-lr branch: plot ‖ΔΣ‖_F / η per refresh step. A1 is
+        # the claim that this ratio is ≈ constant; we report mean ± CV.
+        ratios = y / np.maximum(x, 1e-12)
+        ax.scatter(np.arange(len(ratios)), ratios, s=10, alpha=0.5,
+                   label="measurements")
+        mean_r = fit["C_sigma"]
+        cv = fit.get("cv", float("nan"))
+        ax.axhline(mean_r, color="r", linestyle="-",
+                   label=f"mean C_Σ={mean_r:.3g}, CV={cv:.3f}")
+        ax.set_xlabel("measurement index")
+        ax.set_ylabel(r"$\|\Sigma^{(t+1)} - \Sigma^{(t)}\|_F / \eta$")
+        ax.set_title("E2 — A1 (constant-η): ratio consistency test")
+    else:
+        ax.scatter(x, y, s=8, alpha=0.4, label="measurements")
+        xs = np.linspace(0, x.max() * 1.05, 50)
+        ax.plot(xs, fit["C_sigma"] * xs, "r-",
+                label=f"C_Σ={fit['C_sigma']:.3g}, R²={fit.get('r2', 0):.3f}")
+        ax.set_xlabel(r"$\eta_t$ (learning rate)")
+        ax.set_ylabel(r"$\|\Sigma^{(t+1)} - \Sigma^{(t)}\|_F$")
+        ax.set_title(r"E2 — Assumption A1: $\Sigma$-drift vs lr")
     ax.legend()
     fig.tight_layout()
     fig.savefig(out_dir / "F2_dSigma_vs_lr.png", dpi=160)
@@ -357,7 +430,38 @@ def plot_F4(
 
 
 # ----------------------------------------------------------------- driver
-def run(run_dir: Path) -> Dict[str, Any]:
+def _filter_layers_by_gamma(
+    per_layer: Dict[int, List[Dict[str, Any]]],
+    gamma_threshold: float,
+) -> Dict[int, List[Dict[str, Any]]]:
+    """Drop layers whose minimum γ over the run is ≤ threshold.
+
+    Small-γ layers are the dominant source of A3 (sign-flip) failures
+    because the top-1 vs top-2 eigenvalues are nearly degenerate — any
+    Σ perturbation can rotate v by ~90°. Filtering them out tests the
+    theorem on the regime where the assumption A2 (positive gap) is not
+    just nominally satisfied but actually well-separated. Pass 0 to
+    disable (default behaviour).
+    """
+    if gamma_threshold <= 0:
+        return per_layer
+    out: Dict[int, List[Dict[str, Any]]] = {}
+    for li, rs in per_layer.items():
+        gs = [float(r.get("gamma", 0.0)) for r in rs
+              if r.get("gamma") is not None and np.isfinite(r.get("gamma", 0.0))]
+        if not gs:
+            continue
+        if min(gs) > gamma_threshold:
+            out[li] = rs
+    return out
+
+
+def run(
+    run_dir: Path,
+    *,
+    skip_warmup_optsteps: int = 0,
+    gamma_threshold: float = 0.0,
+) -> Dict[str, Any]:
     ver_dir = run_dir / "thm_verification"
     metrics_path = ver_dir / "metrics.jsonl"
     if not metrics_path.exists():
@@ -369,28 +473,53 @@ def run(run_dir: Path) -> Dict[str, Any]:
     fig_dir = out_dir / "figures"
     fig_dir.mkdir(parents=True, exist_ok=True)
 
-    rows = _load_metrics(metrics_path)
+    rows_all = _load_metrics(metrics_path)
+    # Drop the warmup phase from the per-row stream so A1 / A3 statistics
+    # only cover the constant-η regime (Round 2 redesign).
+    if skip_warmup_optsteps > 0:
+        rows = [r for r in rows_all
+                if int(r.get("global_step", 0)) > skip_warmup_optsteps]
+    else:
+        rows = rows_all
     per_layer = _by_layer(rows)
+    # Optional γ filter — exclude layers whose top-1/top-2 separation is
+    # below threshold (flip-prone). Applied to E3/E3b only (E1/E4 still
+    # report over the full per-layer set so the failure mode stays visible).
+    per_layer_for_bound = _filter_layers_by_gamma(per_layer, gamma_threshold)
 
     # E2 first — its C_Σ feeds E3.
-    e2 = fit_c_sigma(rows)
+    e2 = fit_c_sigma(rows, skip_warmup_optsteps=0)  # rows already filtered
     plot_F2(e2, fig_dir)
 
     e1 = plot_F1(per_layer, fig_dir)
-    e3 = analyze_E3(per_layer, c_sigma=e2["C_sigma"],
-                    gamma_min=e1["gamma_min"], out_dir=fig_dir)
-    e3b = analyze_E3b(per_layer)
+    e3 = analyze_E3(
+        per_layer_for_bound,
+        c_sigma=e2["C_sigma"],
+        gamma_min=e1["gamma_min"] if gamma_threshold == 0
+                   else max(e1["gamma_min"], gamma_threshold),
+        out_dir=fig_dir,
+    )
+    e3b = analyze_E3b(per_layer_for_bound)
     e4 = plot_F4(per_layer, fig_dir)
 
     verdicts = _verdicts(e1, e2, e3, e3b, e4)
     summary = {
         "E1_eigengap": e1,
-        "E2_C_sigma": {k: e2[k] for k in ("C_sigma", "r2", "n")},
+        "E2_C_sigma": {k: e2.get(k) for k in
+                       ("C_sigma", "r2", "cv", "lr_const", "n", "mode")},
         "E3_per_step_bound": {k: e3.get(k) for k in
                               ("factor_2CoverG", "n_measurements",
                                "bound_violations", "tightness", "table_F1")},
         "E3b_sign_calibration": e3b,
         "E4_cumulative": e4,
+        "config": {
+            "skip_warmup_optsteps": skip_warmup_optsteps,
+            "gamma_threshold": gamma_threshold,
+            "n_layers_after_gamma_filter": len(per_layer_for_bound),
+            "n_layers_total": len(per_layer),
+            "n_rows_after_warmup_skip": len(rows),
+            "n_rows_total": len(rows_all),
+        },
         "verdicts": verdicts,
     }
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2))
@@ -404,10 +533,21 @@ def _verdicts(e1, e2, e3, e3b, e4) -> Dict[str, str]:
     v["E1"] = "PASS" if (np.isfinite(e1.get("gamma_min", float("nan")))
                          and e1["gamma_min"] > 0
                          and e1["n_violations"] == 0) else "FAIL"
-    v["E2"] = "PASS" if (np.isfinite(e2.get("C_sigma", float("nan")))
-                         and np.isfinite(e2.get("r2", float("nan")))
-                         and e2["r2"] > 0.3
-                         and e2["n"] > 0) else "FAIL"
+
+    # E2: two modes.
+    #   * "constant"  → A1 is the consistency claim; PASS when CV < 0.5.
+    #   * "regression"→ legacy slope fit; PASS when R² > 0.3 (cosine schedule).
+    e2_mode = e2.get("mode", "regression")
+    if e2_mode == "constant":
+        cv = e2.get("cv")
+        v["E2"] = "PASS" if (cv is not None and np.isfinite(cv) and cv < 0.5
+                             and e2.get("n", 0) > 0) else "FAIL"
+    else:
+        v["E2"] = "PASS" if (np.isfinite(e2.get("C_sigma", float("nan")))
+                             and np.isfinite(e2.get("r2", float("nan")))
+                             and e2.get("r2", 0) > 0.3
+                             and e2.get("n", 0) > 0) else "FAIL"
+
     bv = e3.get("bound_violations")
     tight = (e3.get("tightness") or {}).get("mean")
     v["E3"] = "SKIPPED" if bv is None else (
@@ -425,8 +565,20 @@ def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--run_dir", required=True, type=Path,
                    help="Path to <output_root>/<output_subdir>/runs/<tag>/")
+    p.add_argument("--skip_warmup_optsteps", type=int, default=0,
+                   help="Drop measurements at global_step ≤ this value "
+                        "(use to exclude the warmup phase under a "
+                        "constant-lr schedule).")
+    p.add_argument("--gamma_threshold", type=float, default=0.0,
+                   help="Exclude layers whose min γ across refreshes is "
+                        "below this threshold from the per-step bound (E3) "
+                        "and sign-flip (E3b) tests. 0 = include all layers.")
     args = p.parse_args()
-    run(args.run_dir)
+    run(
+        args.run_dir,
+        skip_warmup_optsteps=args.skip_warmup_optsteps,
+        gamma_threshold=args.gamma_threshold,
+    )
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 model_key: mistral-7b
-model_path: ${oc.env:MODEL_PATH_MISTRAL_7B,/group-volume/nait-models/Mistral-7B-v0.1}
+model_path: ${oc.env:MODEL_PATH_MISTRAL_7B,/group-volume/nait-models/mistral-7b-v0.1}
 prompt_style: mistral_instruct
 # NAIT Table 8: max_length=512 (Alpaca-GPT4 samples fit comfortably).
 max_seq_len: 512

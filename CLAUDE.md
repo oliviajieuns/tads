@@ -49,7 +49,19 @@ base selector에 모델 자신의 hidden-state trajectory에서 뽑은 구조적
 - 14B:  /group-volume/jieuns/models/Qwen2.5-14B
 - LLaMA-2-7B: (경로 미확정 — 사용 시 확인)
 - 학습 데이터: /group-volume/IT-datasets/alpaca_gpt4/data/
-- 코드: /user-volume/tads/ (src/ scripts/ configs/ checkpoints/ logs/)
+- 코드 (사내 클론): /user-volume/tads/ (github.sec.samsung.net/jieun/tads)
+- 코드 (실제 import 경로, fork 클론): /group-volume/jieuns/tads_v2/
+  remote = github.com/oliviajieuns/tads (메인 작업 repo)
+  venv에 editable 설치됨: `pip install -e /group-volume/jieuns/tads_v2`
+- 백업: /group-volume/jieuns/tads_v2.bak.<YYYYMMDD_HHMM>
+  (구 33modeling/tads 클론 + WIP evol_7b configs + run_evol_chain_after_random.sh)
+- 출력/체크포인트: /group-volume/jieuns/tads-checkpoints/
+  (configs/base.yaml의 output_root + data_cache 둘 다 본인 경로로 수정 완료;
+   `${oc.env:OUTPUT_ROOT,...}` / `${oc.env:DATA_CACHE,...}` 기본값)
+  ⚠️ 동료 minsoo3.kim 경로 박힌 config 발견 시 본인 경로로 교체 필수
+
+노드별 메모:
+- run1108146-tads-theory: A100-SXM4-80GB × 8 (sanity/0.5B 작업 노드)
 
 ---
 

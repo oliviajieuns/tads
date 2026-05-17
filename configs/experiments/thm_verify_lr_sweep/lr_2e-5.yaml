@@ -1,0 +1,42 @@
+# Theorem 1 / A1 cross-η verification — η = 5e-6 (1/4 of base).
+#
+# Identical to the "D" cell of the 2x2 ablation except for the lr value.
+# Run this cell alongside lr_1e-5 / lr_2e-5 / lr_5e-5 to test whether
+# C_σ_est = mean(‖ΔΣ‖_F / η) is INDEPENDENT of the plateau η — i.e.
+# whether A1's proportionality "‖ΔΣ‖ ∝ η" holds across magnitudes.
+defaults:
+  - configs/base.yaml
+  - configs/methods/tads.yaml
+  - configs/models/qwen2.5-0.5b.yaml
+  - configs/modes/lora.yaml
+
+output_subdir: light/thm_verify_lr_sweep/lr_2e-5
+selection_ratio: 0.1
+train_epochs: 3
+batch_size: 4
+grad_accum: 2
+episode_batch_size: 2
+
+lr_schedule: constant
+learning_rate: 2.0e-5
+
+lora:
+  r: 8
+  alpha: 16
+  dropout: 0.05
+
+anchor:
+  layer_indices: all
+  layer_idx: -1
+  max_samples_for_pca: 2000
+  pca_batch_size: 16
+
+verification:
+  enabled: true
+  refresh_every_optstep: 25
+  save_anchors: true
+  track_delta_sigma: true
+  probe_size: 2000
+  probe_seed: 4242
+  output_subdir: thm_verification
+  record_baseline: true

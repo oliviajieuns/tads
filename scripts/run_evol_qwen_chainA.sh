@@ -23,8 +23,11 @@ source /group-volume/jieuns/llm-instruction-tuning/venv/bin/activate
 export OMP_NUM_THREADS=4 MKL_NUM_THREADS=4 OPENBLAS_NUM_THREADS=4 \
        NUMEXPR_NUM_THREADS=4 TOKENIZERS_PARALLELISM=false
 
-GPUS=0,1,2,3
-PORT=29501
+# Defaults: GPU 0-3, port 29501. Override per-node via env, e.g.
+#   GPUS=0,1,2,3 PORT=29501 bash scripts/run_evol_qwen_chainA.sh
+GPUS="${GPUS:-0,1,2,3}"
+PORT="${PORT:-29501}"
+NPROC="$(echo "$GPUS" | awk -F',' '{print NF}')"
 METHODS=(random_10 tads_10)
 LOG_DIR=$REPO/logs
 mkdir -p "$LOG_DIR"
@@ -40,7 +43,7 @@ for method in "${METHODS[@]}"; do
   echo
   echo "=== START $method at $(date) ===" | tee -a "$log"
   CUDA_VISIBLE_DEVICES=$GPUS torchrun \
-      --nproc_per_node=4 \
+      --nproc_per_node=$NPROC \
       --master_port=$PORT \
       -m tads.train \
       --config configs/experiments/evol_7b/qwen25/${method}.yaml \

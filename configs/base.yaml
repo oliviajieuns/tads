@@ -3,8 +3,8 @@
 
 # --- Paths (override via env vars or experiment YAML) ---
 model_path: ${oc.env:MODEL_PATH,/group-volume/nait-models/Llama-2-7b-hf}
-data_cache: ${oc.env:DATA_CACHE,/group-volume/minsoo3.kim/tads-checkpoints/cache}
-output_root: ${oc.env:OUTPUT_ROOT,/group-volume/minsoo3.kim/tads-checkpoints}
+data_cache: ${oc.env:DATA_CACHE,/group-volume/jieuns/tads-checkpoints/cache}
+output_root: ${oc.env:OUTPUT_ROOT,/group-volume/jieuns/tads-checkpoints}
 # Optional explicit log dir (default: <output_dir>/logs)
 # log_dir: ./logs
 

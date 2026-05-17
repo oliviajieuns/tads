@@ -12,6 +12,7 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
+import torch.distributed as dist
 from datasets import load_dataset
 
 from .sft_prompts import tokenize_alpaca
@@ -205,13 +206,33 @@ def build_alpaca_dataset(
     # training. Set the env var to force a fresh pass; otherwise the
     # cache is used as before (saves ~1-2 minutes on Alpaca-52K).
     _fresh_cache = os.environ.get("TADS_FRESH_DATA_CACHE", "0") == "1"
-    ds = raw.map(
-        _tokenize,
-        remove_columns=raw.column_names,
-        num_proc=num_proc,
-        desc=f"Tokenising Alpaca ({prompt_style})",
-        load_from_cache_file=not _fresh_cache,
-    )
+
+    # DDP cache-race guard: under torchrun, every rank calls .map() concurrently.
+    # If the cache is cold, all 4 ranks race on the same fingerprint shard files
+    # and one trips a FileNotFoundError when another's chmod/rename already moved
+    # the .arrow shard. Gate the build behind rank 0; the others wait at the
+    # barrier and then hit a populated cache (no writes → no race).
+    ddp_active = dist.is_available() and dist.is_initialized()
+
+    def _do_map():
+        return raw.map(
+            _tokenize,
+            remove_columns=raw.column_names,
+            num_proc=num_proc,
+            desc=f"Tokenising Alpaca ({prompt_style})",
+            load_from_cache_file=not _fresh_cache,
+        )
+
+    if ddp_active and dist.get_world_size() > 1:
+        rank = dist.get_rank()
+        if rank == 0:
+            ds = _do_map()
+            dist.barrier()
+        else:
+            dist.barrier()
+            ds = _do_map()  # cache populated by rank 0 → reads only, no race
+    else:
+        ds = _do_map()
     ds.set_format("torch")
     logger.info(
         "Alpaca dataset built | n=%d | max_seq_len=%d | style=%s",

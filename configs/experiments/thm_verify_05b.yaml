@@ -1,0 +1,64 @@
+# Theorem 1 empirical verification (App. F) — Qwen2.5-0.5B + LoRA.
+#
+# Drop-in extension of light_tads_05b.yaml. The only material additions are
+# the `verification:` block (step-level anchor refresh + JSONL dumping) and
+# the anchor max_samples_for_pca cap (the probe is now resampled at every
+# refresh point, so we trade probe size for refresh frequency).
+#
+# Expected output:
+#   <output_root>/light/thm_verify_05b/runs/<tag>/thm_verification/
+#       metrics.jsonl        per (step, layer) row of A1/A2/A3/C1 metrics
+#       anchors/step_*.npy   v_l^(t) snapshots for cumulative-bound (C2)
+#       anchors/layer_indices.json  layer ordering used by analyzer
+#
+# Run:
+#   python -m tads.train --config configs/experiments/thm_verify_05b.yaml
+# then
+#   python scripts/analyze_theorem.py \
+#       --run_dir <output_root>/light/thm_verify_05b/runs/<tag>
+#
+# Refresh interval rationale (≥20 measurement points):
+#   |D| ≈ 52K · selection_ratio 0.1 ≈ 5,200 samples/epoch
+#   effective batch = batch_size 4 · grad_accum 2 = 8
+#   optimizer steps/epoch ≈ 5200 / 8 ≈ 650 (single GPU)
+#   3 epochs ≈ 1,950 optimizer steps
+#   refresh_every_optstep=50 → ~39 measurement points  ✓
+# Adjust downward for DDP world_size>1 (steps scale ~ 1/world_size).
+
+defaults:
+  - configs/base.yaml
+  - configs/methods/tads.yaml
+  - configs/models/qwen2.5-0.5b.yaml
+  - configs/modes/lora.yaml
+
+output_subdir: light/thm_verify_05b
+selection_ratio: 0.1
+train_epochs: 3
+batch_size: 4
+grad_accum: 2
+episode_batch_size: 2
+
+lora:
+  r: 8
+  alpha: 16
+  dropout: 0.05
+
+anchor:
+  layer_indices: all      # per-layer Theorem verification needs every layer
+  layer_idx: -1
+  # Smaller probe than light_tads_05b because we now PCA at every refresh
+  # point (≈39× per run) instead of once per epoch. 256 keeps total PCA
+  # wall-time bounded; the H>N regime triggers the Gram-trick branch in
+  # _pca_top1 so it's still cheap.
+  max_samples_for_pca: 256
+  pca_batch_size: 4
+
+verification:
+  enabled: true
+  refresh_every_optstep: 50
+  save_anchors: true
+  track_delta_sigma: true
+  probe_size: 256           # mirror anchor.max_samples_for_pca for sanity
+  probe_seed: 4242
+  output_subdir: thm_verification
+  record_baseline: true

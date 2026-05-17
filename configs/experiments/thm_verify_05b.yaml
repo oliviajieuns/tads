@@ -1,9 +1,23 @@
-# Theorem 1 empirical verification (App. F) — Qwen2.5-0.5B + LoRA.
+# Theorem 1 empirical verification — round 2 (App. F, redesigned).
 #
-# Drop-in extension of light_tads_05b.yaml. The only material additions are
-# the `verification:` block (step-level anchor refresh + JSONL dumping) and
-# the anchor max_samples_for_pca cap (the probe is now resampled at every
-# refresh point, so we trade probe size for refresh frequency).
+# Round 1 (run 20260517_081431) revealed two failure modes:
+#   - A1 (Σ Lipschitz in η) regression had R² ≈ 0 because cosine decay
+#     mixed lr variability with covariance dynamics — A1 was statistically
+#     impossible to verify under that schedule.
+#   - 27/936 sign flips on small-γ layers (γ ≈ 0.012, near rank-deficiency
+#     of an under-sampled Σ).
+#
+# Round 2 redesign — three changes:
+#   1. lr_schedule: constant   → after warmup, η is FIXED. A1 becomes a
+#      consistency test on ΔΣ / η across refreshes (low CV ⇔ A1 holds),
+#      not a slope regression that's drowned out by η variation.
+#   2. probe_size 256 → 2000   → matches base.yaml default. With H=896
+#      hidden, N=2000 takes the Σ estimate out of the H>N rank-deficient
+#      regime, cuts ΔΣ noise ~2.8× (= √(2000/256)), and stabilises the
+#      top-1 eigenvector so sign flips don't fire spuriously.
+#   3. refresh_every_optstep 50 → 25 → ~78 measurement points (vs 39);
+#      smaller per-interval Σ change → telescoping bound is tighter and
+#      cleaner per row.
 #
 # Expected output:
 #   <output_root>/light/thm_verify_05b/runs/<tag>/thm_verification/
@@ -14,16 +28,14 @@
 # Run:
 #   python -m tads.train --config configs/experiments/thm_verify_05b.yaml
 # then
-#   python scripts/analyze_theorem.py \
-#       --run_dir <output_root>/light/thm_verify_05b/runs/<tag>
+#   python scripts/analyze_theorem.py --run_dir <output_root>/.../runs/<tag>
 #
-# Refresh interval rationale (≥20 measurement points):
+# Refresh count (single GPU, no DDP):
 #   |D| ≈ 52K · selection_ratio 0.1 ≈ 5,200 samples/epoch
 #   effective batch = batch_size 4 · grad_accum 2 = 8
-#   optimizer steps/epoch ≈ 5200 / 8 ≈ 650 (single GPU)
+#   optimizer steps/epoch ≈ 5,200 / 8 ≈ 650
 #   3 epochs ≈ 1,950 optimizer steps
-#   refresh_every_optstep=50 → ~39 measurement points  ✓
-# Adjust downward for DDP world_size>1 (steps scale ~ 1/world_size).
+#   refresh_every_optstep=25 → ~78 measurement points  ✓
 
 defaults:
   - configs/base.yaml
@@ -38,27 +50,28 @@ batch_size: 4
 grad_accum: 2
 episode_batch_size: 2
 
+# Round 2: hold η fixed so A1 becomes a clean consistency test.
+lr_schedule: constant
+
 lora:
   r: 8
   alpha: 16
   dropout: 0.05
 
 anchor:
-  layer_indices: all      # per-layer Theorem verification needs every layer
+  layer_indices: all       # per-layer Theorem verification needs every layer
   layer_idx: -1
-  # Smaller probe than light_tads_05b because we now PCA at every refresh
-  # point (≈39× per run) instead of once per epoch. 256 keeps total PCA
-  # wall-time bounded; the H>N regime triggers the Gram-trick branch in
-  # _pca_top1 so it's still cheap.
-  max_samples_for_pca: 256
-  pca_batch_size: 4
+  # Round 2: full probe (matches base default). The H>N rank deficiency in
+  # round 1 (H=896, N=256) was the dominant source of γ-noise → sign flips.
+  max_samples_for_pca: 2000
+  pca_batch_size: 16
 
 verification:
   enabled: true
-  refresh_every_optstep: 50
+  refresh_every_optstep: 25
   save_anchors: true
   track_delta_sigma: true
-  probe_size: 256           # mirror anchor.max_samples_for_pca for sanity
+  probe_size: 2000          # mirror anchor.max_samples_for_pca for sanity
   probe_seed: 4242
   output_subdir: thm_verification
   record_baseline: true

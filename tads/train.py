@@ -74,7 +74,10 @@ except Exception:
 import torch
 import torch.distributed as dist
 from torch.utils.data import Subset
-from tads.core.schedulers import get_cosine_schedule_with_warmup
+from tads.core.schedulers import (
+    get_constant_schedule_with_warmup,
+    get_cosine_schedule_with_warmup,
+)
 
 from tads.core.agent import PPOAgent
 from tads.core.run_layout import (
@@ -503,11 +506,33 @@ def main() -> None:
         )
         if is_main_process():
             logger.info("Optimizer: torch.AdamW (fp32) | wd=%s", wd)
-    scheduler = get_cosine_schedule_with_warmup(
-        optimizer,
-        num_warmup_steps=max(1, int(total_steps * warmup_ratio)),
-        num_training_steps=total_steps,
-    )
+    # `lr_schedule` chooses between cosine-decay (default, paper-matching SFT)
+    # and warmup-then-constant (App. F Theorem 1 verification: holds η fixed
+    # across measurement points so A1 becomes a consistency test, not a
+    # regression). Any other value falls back to cosine with a warning.
+    _schedule_kind = str(cfg.get("lr_schedule", "cosine")).lower()
+    _warmup_n = max(1, int(total_steps * warmup_ratio))
+    if _schedule_kind == "constant":
+        scheduler = get_constant_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=_warmup_n,
+        )
+        if is_main_process():
+            logger.info(
+                "LR schedule: warmup(%d) → constant %.3e",
+                _warmup_n, lr,
+            )
+    else:
+        if _schedule_kind != "cosine" and is_main_process():
+            logger.warning(
+                "Unknown lr_schedule=%r — falling back to cosine.",
+                _schedule_kind,
+            )
+        scheduler = get_cosine_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=_warmup_n,
+            num_training_steps=total_steps,
+        )
 
     # ---------- resume: restore optimizer/scheduler/agent/anchor/metrics ----------
     metrics_log = []

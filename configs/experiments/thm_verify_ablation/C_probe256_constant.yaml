@@ -1,0 +1,40 @@
+# Cell C — schedule-only fix (probe 256, constant lr).
+# Tests whether holding η fixed (so A1 becomes a consistency claim
+# rather than a regression) is sufficient by itself. Expected:
+# E2 PASS (mean ΔΣ/η stable, CV < 0.5), E3b still FAIL (rank-deficient
+# Σ at H=896 vs N=256 → unstable eigendirections).
+defaults:
+  - configs/base.yaml
+  - configs/methods/tads.yaml
+  - configs/models/qwen2.5-0.5b.yaml
+  - configs/modes/lora.yaml
+
+output_subdir: light/thm_verify_ablation/C_probe256_constant
+selection_ratio: 0.1
+train_epochs: 3
+batch_size: 4
+grad_accum: 2
+episode_batch_size: 2
+
+lr_schedule: constant
+
+lora:
+  r: 8
+  alpha: 16
+  dropout: 0.05
+
+anchor:
+  layer_indices: all
+  layer_idx: -1
+  max_samples_for_pca: 256
+  pca_batch_size: 4
+
+verification:
+  enabled: true
+  refresh_every_optstep: 25
+  save_anchors: true
+  track_delta_sigma: true
+  probe_size: 256
+  probe_seed: 4242
+  output_subdir: thm_verification
+  record_baseline: true

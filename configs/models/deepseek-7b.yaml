@@ -1,5 +1,5 @@
 model_key: deepseek-7b
-model_path: ${oc.env:MODEL_PATH_DEEPSEEK_7B,/group-volume/nait-models/deepseek-llm-7b-base}
+model_path: ${oc.env:MODEL_PATH_DEEPSEEK_7B,/group-volume/nait-models/DeepSeek-LLM-7B-Base}
 prompt_style: deepseek_user_assistant
 # NAIT Table 8: max_length=512 (Alpaca-GPT4 samples fit comfortably).
 max_seq_len: 512

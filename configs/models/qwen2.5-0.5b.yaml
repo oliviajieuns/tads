@@ -1,4 +1,4 @@
 model_key: qwen2.5-0.5b
-model_path: ${oc.env:MODEL_PATH_QWEN25_05B,/group-volume/nait-models/qwen2.5-0.5b}
+model_path: ${oc.env:MODEL_PATH_QWEN25_05B,/group-volume/jieuns/models/Qwen2.5-0.5B}
 prompt_style: qwen_chatml
 max_seq_len: 512

@@ -207,6 +207,23 @@ def build_alpaca_dataset(
     # cache is used as before (saves ~1-2 minutes on Alpaca-52K).
     _fresh_cache = os.environ.get("TADS_FRESH_DATA_CACHE", "0") == "1"
 
+    # Shared-FS workaround: HF datasets' .map(num_proc=N) inside a single
+    # python process spawns N forked workers that each write their own
+    # `cache-<...>_<NNNNN>_of_<NNNNN>.arrow` shard. On the SPACE cluster's
+    # group-volume (an NFS-like shared FS), the per-shard chmod races —
+    # one worker tries to chmod a shard whose final rename hasn't been
+    # observed yet by this process's stat() call, surfacing as
+    #
+    #   FileNotFoundError: [Errno 2] ... cache-<...>_00003_of_00004.arrow
+    #
+    # PR #7's rank-0 gate eliminates the cross-rank race; this knob
+    # eliminates the inner-process race by defaulting to a SINGLE worker
+    # on shared FS. ~2-3 min slower for 70K samples vs num_proc=4 but
+    # eliminates a class of intermittent crashes. Override via
+    # TADS_TOKENIZE_NUM_PROC for local-disk runs where the race is moot.
+    _num_proc_env = os.environ.get("TADS_TOKENIZE_NUM_PROC")
+    _effective_num_proc = int(_num_proc_env) if _num_proc_env else 1
+
     # DDP cache-race guard: under torchrun, every rank calls .map() concurrently.
     # If the cache is cold, all 4 ranks race on the same fingerprint shard files
     # and one trips a FileNotFoundError when another's chmod/rename already moved
@@ -218,7 +235,7 @@ def build_alpaca_dataset(
         return raw.map(
             _tokenize,
             remove_columns=raw.column_names,
-            num_proc=num_proc,
+            num_proc=_effective_num_proc,
             desc=f"Tokenising Alpaca ({prompt_style})",
             load_from_cache_file=not _fresh_cache,
         )

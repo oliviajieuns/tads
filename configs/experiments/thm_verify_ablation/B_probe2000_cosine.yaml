@@ -1,0 +1,40 @@
+# Cell B — probe-only fix (probe 2000, cosine lr).
+# Tests whether enlarging the probe alone fixes E3b (sign flips) while
+# leaving the cosine schedule's confound on A1 intact. Expected:
+# E3b PASS (full-rank Σ → stable top-1 eigendirection), E2 still FAIL
+# (cosine decay mixes η variability into ΔΣ → low R²).
+defaults:
+  - configs/base.yaml
+  - configs/methods/tads.yaml
+  - configs/models/qwen2.5-0.5b.yaml
+  - configs/modes/lora.yaml
+
+output_subdir: light/thm_verify_ablation/B_probe2000_cosine
+selection_ratio: 0.1
+train_epochs: 3
+batch_size: 4
+grad_accum: 2
+episode_batch_size: 2
+
+lr_schedule: cosine
+
+lora:
+  r: 8
+  alpha: 16
+  dropout: 0.05
+
+anchor:
+  layer_indices: all
+  layer_idx: -1
+  max_samples_for_pca: 2000
+  pca_batch_size: 16
+
+verification:
+  enabled: true
+  refresh_every_optstep: 25
+  save_anchors: true
+  track_delta_sigma: true
+  probe_size: 2000
+  probe_seed: 4242
+  output_subdir: thm_verification
+  record_baseline: true

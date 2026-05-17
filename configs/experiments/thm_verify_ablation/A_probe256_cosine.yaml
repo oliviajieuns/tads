@@ -1,0 +1,40 @@
+# Cell A — round-1 control (probe 256, cosine lr).
+# Replicates the failing baseline so the 2x2 ablation has a control.
+# Expected: E2 FAIL (R² ≈ 0), E3/E3b FAIL.
+defaults:
+  - configs/base.yaml
+  - configs/methods/tads.yaml
+  - configs/models/qwen2.5-0.5b.yaml
+  - configs/modes/lora.yaml
+
+output_subdir: light/thm_verify_ablation/A_probe256_cosine
+selection_ratio: 0.1
+train_epochs: 3
+batch_size: 4
+grad_accum: 2
+episode_batch_size: 2
+
+# Round-1 settings (cosine schedule, small probe).
+# lr_schedule defaults to cosine — explicit here for documentation.
+lr_schedule: cosine
+
+lora:
+  r: 8
+  alpha: 16
+  dropout: 0.05
+
+anchor:
+  layer_indices: all
+  layer_idx: -1
+  max_samples_for_pca: 256
+  pca_batch_size: 4
+
+verification:
+  enabled: true
+  refresh_every_optstep: 50
+  save_anchors: true
+  track_delta_sigma: true
+  probe_size: 256
+  probe_seed: 4242
+  output_subdir: thm_verification
+  record_baseline: true

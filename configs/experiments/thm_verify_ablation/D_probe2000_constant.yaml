@@ -1,0 +1,38 @@
+# Cell D — both fixes (probe 2000, constant lr). Same as the main
+# thm_verify_05b.yaml but in the ablation namespace for direct
+# side-by-side with A/B/C. Expected: E1/E2/E3/E3b/E4 all PASS.
+defaults:
+  - configs/base.yaml
+  - configs/methods/tads.yaml
+  - configs/models/qwen2.5-0.5b.yaml
+  - configs/modes/lora.yaml
+
+output_subdir: light/thm_verify_ablation/D_probe2000_constant
+selection_ratio: 0.1
+train_epochs: 3
+batch_size: 4
+grad_accum: 2
+episode_batch_size: 2
+
+lr_schedule: constant
+
+lora:
+  r: 8
+  alpha: 16
+  dropout: 0.05
+
+anchor:
+  layer_indices: all
+  layer_idx: -1
+  max_samples_for_pca: 2000
+  pca_batch_size: 16
+
+verification:
+  enabled: true
+  refresh_every_optstep: 25
+  save_anchors: true
+  track_delta_sigma: true
+  probe_size: 2000
+  probe_seed: 4242
+  output_subdir: thm_verification
+  record_baseline: true

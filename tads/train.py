@@ -221,7 +221,14 @@ def _setup_ddp() -> bool:
         from datetime import timedelta
         dist.init_process_group(
             backend="nccl",
-            timeout=timedelta(minutes=120),
+            # Was 120 minutes (default ~ 30 min). The 7B+ collect_episode
+            # pass takes 30-90 min on rank 0, during which every other
+            # rank is blocked inside dist.broadcast_object_list waiting
+            # for the selection to be broadcast. The NCCL collective
+            # watchdog used to fire at 120 min and tear the group down
+            # mid-selection; bump to 6 hours so any plausible per-epoch
+            # rank-0 work fits comfortably inside one collective.
+            timeout=timedelta(hours=6),
         )
         torch.cuda.set_device(local_rank())
         return True

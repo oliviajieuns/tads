@@ -58,52 +58,39 @@ def _random_indices(n_total, ratio, seed, epoch):
 
 
 def _broadcast_selection(selected, *, epoch=0, output_dir=None):
-    """File-poll selection share — no inter-write/read NCCL barrier.
+    """NCCL broadcast of selected indices from rank 0 to all ranks.
 
-    Every rank takes the same code path:
-      - rank 0 atomically writes the indices, then atomically touches a
-        `.ready` sentinel.
-      - all other ranks poll for the sentinel on disk and read once it
-        exists. They never call a collective while rank 0 is busy.
-    A single dist.barrier() at the very end keeps the SFT phase in step
-    even if some worker reads a few milliseconds before rank 0 exits its
-    write — and it always completes immediately because everyone has
-    already converged here.
+    Earlier this function used a filesystem sentinel + poll loop on the
+    workers. That avoided NCCL during rank 0's long collect_episode, but
+    on the SPACE group-volume it surfaced a sporadic race: rank 0 would
+    write the ``.ready`` sentinel atomically, one worker would observe
+    it, and the remaining workers would not -- they spun in the poll
+    forever while the rest of training deadlocked. (Concretely:
+    1108319's tads_10 retry on 2026-05-18: rank 2 saw the sentinel and
+    advanced to SFT step 0, ranks 1 and 3 polled for 57+ minutes.)
+
+    The new path is the obvious one: a single
+    ``dist.broadcast_object_list``. Ranks 1..N enter the collective
+    at the same time rank 0 begins collect_episode and block on it
+    cleanly. The collective only completes once rank 0 finishes
+    collect_episode and reaches the broadcast -- which is exactly the
+    synchronisation we want. The NCCL collective watchdog is bumped
+    to 6 h in ``tads/train.py::ensure_ddp_initialized`` so this is
+    comfortable for any plausible rank-0 workload.
+
+    Rank 0 still drops a JSON copy of the selection alongside the
+    checkpoint for the resume-time cache reuse path; that copy is
+    purely informational and never read by other ranks.
     """
-    r = dist.get_rank() if dist.is_initialized() else 0
-
     if not dist.is_initialized():
         if hasattr(selected, "tolist"):
             return selected.tolist()
         return list(selected) if not isinstance(selected, list) else selected
 
+    r = dist.get_rank()
     SRC = 0
-    base = Path(output_dir) if output_dir is not None else Path(tempfile.gettempdir())
-    base.mkdir(parents=True, exist_ok=True)
-    sel_path = base / f"_selection_epoch{epoch}.json"
-    ready_path = base / f"_selection_epoch{epoch}.ready"
-    ready_tmp = base / f"_selection_epoch{epoch}.ready.tmp"
 
     if r == SRC:
-        # Clean up any stale sentinel from a previous run before writing.
-        # Also sweep PRIOR epochs' broadcast files (epoch-1, epoch-2, ...) —
-        # we deferred cleanup of those from each epoch's exit (see the
-        # NOTE at the bottom of this function) to avoid racing workers
-        # that hadn't finished reading the broadcast yet. By the time
-        # we re-enter for the next epoch, every worker has definitely
-        # moved past the read, so the prior epoch's files are safe to
-        # remove now. Limit the sweep to 4 prior epochs to keep the
-        # syscall cost bounded.
-        prior_stale = [ready_path, ready_tmp]
-        for prior_epoch in range(max(0, epoch - 4), epoch):
-            prior_stale.append(base / f"_selection_epoch{prior_epoch}.json")
-            prior_stale.append(base / f"_selection_epoch{prior_epoch}.ready")
-        for stale in prior_stale:
-            try:
-                stale.unlink()
-            except FileNotFoundError:
-                pass
-
         if hasattr(selected, "tolist"):
             selected = selected.tolist()
         elif not isinstance(selected, list):
@@ -113,85 +100,51 @@ def _broadcast_selection(selected, *, epoch=0, output_dir=None):
             "[sel-share] rank=0 normalized selection | len=%d | first5=%s",
             len(selected), selected[:5],
         )
-
-        # 1) atomic write of the selection itself.
-        tmp_path = sel_path.with_suffix(".json.tmp")
-        with open(tmp_path, "w") as f:
-            json.dump(selected, f)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp_path, sel_path)
-
-        # 2) atomic write of the `.ready` sentinel — workers only start
-        # reading once this exists, so we never race a half-written
-        # selection file.
-        with open(ready_tmp, "w") as f:
-            f.write(str(epoch))
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(ready_tmp, ready_path)
-
-        logger.info(
-            "[sel-share] rank=0 WROTE %s (%d ids) + ready sentinel",
-            sel_path, len(selected),
-        )
-        result = selected
+        obj_list = [selected]
     else:
-        # Workers poll on disk. No NCCL collective during the wait, so
-        # rank 0's long collect_episode can't trigger a collective watchdog.
-        t_start = time.time()
-        last_log = t_start
-        while not ready_path.exists():
-            now = time.time()
-            if now - t_start > _POLL_TIMEOUT_SEC:
-                raise RuntimeError(
-                    f"[rank {r}] timed out after "
-                    f"{int(now - t_start)}s waiting for "
-                    f"{ready_path}. Rank 0 likely crashed before writing.",
-                )
-            if now - last_log > 60.0:
-                logger.info(
-                    "[sel-share] rank=%d polling for selection (%.0fs elapsed)",
-                    r, now - t_start,
-                )
-                last_log = now
-            time.sleep(_POLL_INTERVAL_SEC)
+        obj_list = [None]
 
-        if not sel_path.exists():
-            raise RuntimeError(
-                f"[rank {r}] ready sentinel present but selection file "
-                f"{sel_path} missing.",
-            )
-        with open(sel_path, "r") as f:
-            result = json.load(f)
+    # NCCL collective. Holds ranks 1..N-1 for the entire duration of
+    # rank 0's collect_episode + scoring. The init_process_group timeout
+    # is 6 h (see train.py), well beyond any per-epoch rank-0 work.
+    dist.broadcast_object_list(obj_list, src=SRC)
+    result = obj_list[0]
+
+    if r != SRC:
         if not isinstance(result, list):
             raise RuntimeError(
-                f"[rank {r}] selection file has wrong shape: "
+                f"[rank {r}] broadcast returned wrong shape: "
                 f"type={type(result).__name__}",
             )
         logger.info(
-            "[sel-share] rank=%d READ %s len=%d", r, sel_path, len(result),
+            "[sel-share] rank=%d received selection broadcast | len=%d",
+            r, len(result),
         )
 
-    # NO dist.barrier here. After rank 0's 30+ minute solo collect_episode
-    # the NCCL communicator can be in a state where the next collective
-    # hangs even when every rank reaches it — the communicator's
-    # background socket has effectively died. Removing the barrier means
-    # ranks proceed straight to SFT, and the very first DDP all_reduce
-    # inside backward() doubles as the alignment point.
-    print(
-        f"[sel-share] rank={r} EXIT _broadcast_selection (no barrier)",
-        flush=True,
-    )
-
-    # NOTE: we used to unlink sel_path + ready_path here on rank 0, but that
-    # raced with workers reading the same files — rank 0's cleanup could fire
-    # in the ~1 ms between the worker's `ready_path.exists()` check and its
-    # subsequent `sel_path.exists()` / json.load(), surfacing as
-    # "ready sentinel present but selection file missing" or a JSONDecodeError
-    # several minutes into SFT. Without a barrier (intentionally removed; see
-    # comment above) we can't safely cleanup until everyone has moved on.
-    # The next epoch's entry sweeps prior epochs' files instead.
+    # Informational on-disk copy for cache-reuse on rank 0 only.
+    # Other ranks never read this; it is only consulted by the cache-
+    # reuse branch in select_indices() on a future resume.
+    if r == SRC and output_dir is not None:
+        base = Path(output_dir)
+        try:
+            base.mkdir(parents=True, exist_ok=True)
+            sel_path = base / f"_selection_epoch{epoch}.json"
+            tmp_path = sel_path.with_suffix(".json.tmp")
+            with open(tmp_path, "w") as f:
+                json.dump(result, f)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_path, sel_path)
+            logger.info(
+                "[sel-share] rank=0 persisted selection to %s for resume cache",
+                sel_path,
+            )
+        except Exception as e:
+            # Persistence failure must not break training; just log.
+            logger.warning(
+                "[sel-share] could not persist selection to %s: %s",
+                output_dir, e,
+            )
 
     return result
 

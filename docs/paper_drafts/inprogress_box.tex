@@ -1,0 +1,44 @@
+% Red-border / red-text status box. Insert immediately AFTER the
+% \subsection{lambda-ablation ...} (after both tables) and BEFORE
+% \subsection{Empirical verification of Theorem 1}. Requires
+% \usepackage{xcolor} (already pulled by \textcolor elsewhere).
+
+\begin{center}
+\fcolorbox{red}{white}{%
+\begin{minipage}{0.95\columnwidth}
+\color{red}\small
+\textbf{Experiments in progress / planned (additional submission).}
+The submission below covers \textsc{TADS} at the 7B scale on
+Alpaca-GPT4 plus the $\lambda$-ablation above. We are running, and
+will append before the camera-ready cut, the following:
+\begin{itemize}\setlength\itemsep{0.1em}
+  \item \textbf{Scale axis}: Qwen2.5-0.5B / 7B / 14B with the same
+    four-method matrix (\texttt{random\_10}, \texttt{data\_agent\_10},
+    \texttt{tads\_10}, \texttt{full\_100}). 0.5B sanity already
+    populated; 7B in progress (this submission); 14B LoRA scheduled.
+  \item \textbf{Dataset axis}: WizardLM Evol-Instruct 70K with the
+    same four-method matrix on Qwen2.5-7B. \texttt{random\_10} and
+    \texttt{full\_100} sealed; \texttt{tads\_10} and
+    \texttt{data\_agent\_10} re-training after a DDP selection-broadcast
+    fix.
+  \item \textbf{Selection-ratio sweep}: $\rho \in \{0.05, 0.10,
+    0.20, 0.50\}$ on Qwen2.5-7B with TADS, holding
+    $\lambda=1$. $\rho=0.10$ is the matrix default;
+    $\rho=1.00$ is \texttt{full\_100}; three new cells scheduled.
+  \item \textbf{$\lambda$-ablation at 7B}: extend Table~\ref{tab:lambda-05b}
+    (currently 0.5B sanity) to Qwen2.5-7B with $\lambda \in \{0.5,
+    2, 5, 10\}$ on top of the existing $\lambda \in \{0, 1\}$ cells.
+  \item \textbf{Theorem 1 verification (App. F)}: the empirical
+    bound in Sec.~\ref{sec:thm-empirical} comes from the D cell of a
+    $2{\times}2$ ablation (probe size $\times$ schedule) plus a
+    cross-$\eta$ sweep; an matched no-anchor run for the grey curve
+    in Fig.~\ref{fig:thm-main} is finishing as of submission.
+  \item \textbf{Cost / overhead table}: per-method wall-clock
+    breakdown (collect\_episode, anchor PCA, SFT) parsed from the
+    existing training logs; no new compute required.
+\end{itemize}
+The current submission is therefore a snapshot; the camera-ready
+will fold in the remaining cells as they complete on the cluster
+schedule.
+\end{minipage}}
+\end{center}

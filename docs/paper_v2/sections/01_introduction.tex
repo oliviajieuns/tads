@@ -1,0 +1,142 @@
+% =====================================================================
+%  Section 1: Introduction
+% =====================================================================
+\section{Introduction}
+\label{sec:intro}
+
+\paragraph{Data selection in instruction tuning.}
+Instruction tuning (IT) is the foundational stage of LLM
+post-training: contemporary open releases~\cite{dubey2024llama3,
+lambert2024tulu3,qwen2025} begin with supervised fine-tuning on
+instruction--response pairs. As IT corpora have grown from thousands
+of pairs to hundreds of thousands, an empirical near-consensus has
+emerged: at fixed compute, the quality and composition of the IT
+subset dominate its raw scale~\cite{zhou2023lima,zhang2025jair,
+qin2024datatsunami}. The central lever of IT is therefore
+\emph{selection}---choosing which subset of a large candidate pool
+to train on.
+
+\paragraph{Selection methods.}
+Selection criteria have evolved along three model-aware
+axes---surface-level quality scoring, gradient influence on a
+target validation set, and structural signals from hidden-state
+geometry (Sec.~\ref{sec:related}). A more recent line is
+\emph{dynamic data selection}: re-estimating data utility during
+training as the model state changes~\cite{kung2023activeit,
+sun2025dots}. This line shows that useful examples are not fixed
+properties of the data alone; their value can depend on the current
+model, training stage, and optimisation regime. In this paper, we
+focus on the supervised instruction-tuning setting, where candidates
+are instruction--response pairs and no rollout group, verifier
+reward, or target validation set is assumed.
+
+\paragraph{Two gaps in dynamic selection.}
+Despite this progress, two gaps remain. First, structural
+hidden-state selectors and dynamic selectors have largely evolved
+separately. The former extract capability directions from model
+representations, but usually fix them before training using seed or
+target examples. The latter adapt during training, but typically
+optimise scalar utilities such as difficulty, uncertainty, loss
+change, or reward proxies without directly using the model's
+evolving representation geometry. As a result, dynamic selection can
+track the training state while still missing the structural direction
+along which the model is being updated.
+
+Second, the scalar utilities used in dynamic selection can be
+unstable in multi-task instruction pools. In the RL composite-reward
+selector we use as a base, difficulty and uncertainty are combined
+through a variance-ratio weight. In multi-task pools, this weight can
+shift with task composition because it conflates within-task and
+between-task variance; under a naive per-micro-batch implementation,
+it can even lose the difficulty signal when the micro-batch size is
+one. These sensitivities motivate a dynamic selection criterion that
+is not only adaptive, but also representation-aware and stable.
+
+\paragraph{Our approach: Trajectory-Anchored Dynamic Selection.}
+We propose \textsc{TADS} (Trajectory-Anchored Dynamic Selection), a
+model-intrinsic framework that augments a dynamic selection pipeline
+with a structural signal extracted from the model's own hidden-state
+trajectory. At each refresh step, \textsc{TADS} computes
+contextualisation deltas
+\[
+\Delta h_l(x;\theta_{t-1})
+=
+h_l^{\mathrm{last}}(x;\theta_{t-1})
+-
+h_l^{\mathrm{first}}(x;\theta_{t-1})
+\]
+on a probe subset of the candidate pool and takes the top principal
+direction as a per-layer trajectory anchor $v_l^{(t)}$. This anchor
+requires no in-domain seed examples, no validation set, no labels,
+and no auxiliary scorer. It is extracted from the same model being
+fine-tuned, using the candidate pool itself.
+
+The anchor enters the selection rule through a single multiplicative
+factor. The underlying advantage-estimator pipeline provides two
+time-dependent signals for each candidate at refresh step $t$: a
+composite reward $R_i^{(t)}$ and a learned advantage estimate
+$a_i^{(t)} \in (0,1)$ (App.~\ref{app:setup}). We use their product
+as a \emph{reward--advantage diagnostic consensus} score: a
+candidate receives a high base score only when both the scalar
+reward signal and the advantage estimate support its selection.
+The advantage estimate $a_i^{(t)}$ is the \emph{output} of a learned
+estimator; the training procedure used to fit it
+(App.~\ref{app:setup}) is incidental to the selection rule
+itself, which consumes $a_i$ only as a bounded scalar value.
+\textsc{TADS} then applies the trajectory anchor as
+\[
+s_i^{(t)}
+=
+R_i^{(t)} a_i^{(t)}
+\left(
+1+\lambda\,\widetilde{\mathrm{align}}_i^{(t)}
+\right),
+\]
+where $\widetilde{\mathrm{align}}_i^{(t)}\in[0,1]$ measures how well
+the candidate's sequence-mean hidden state aligns with the current
+trajectory anchor, averaged across layers. Setting $\lambda=0$
+removes the anchor and recovers the fixed reward--advantage consensus
+base ranking $R_i^{(t)}a_i^{(t)}$; varying $\lambda$ therefore
+isolates the contribution of the trajectory anchor on top of the
+same base rule.
+
+\paragraph{Stability of the trajectory anchor.}
+A key question is whether the anchor is a meaningful structural
+object or merely probe noise. We answer this with a stability
+guarantee. Under a positive eigenvalue gap and bounded covariance
+change, the sign-calibrated trajectory anchor satisfies
+\[
+\left\|
+v_l^{(t+1)}-v_l^{(t)}
+\right\|
+\le
+\frac{2C_\Sigma}{\gamma_{\min}}\,\eta_t .
+\]
+Thus the anchor evolves smoothly at the scale of the learning-rate
+schedule. The guarantee concerns the trajectory anchor itself and
+therefore the structural component introduced by \textsc{TADS}; it
+does not depend on interpreting the reward--advantage consensus score as
+a policy-gradient estimator. This separation is important: the base
+ranking supplies a fixed diagnostic selection rule, while the theorem
+establishes stability for the additional trajectory-derived signal.
+
+\paragraph{Contributions.}
+This paper makes four contributions. First, we revisit dynamic
+instruction-tuning data selection and identify a practical
+instability in composite-reward selection: the variance-ratio weight
+can drift with task mix and can collapse under naive micro-batch
+statistics. Second, we introduce \textsc{TADS}, a trajectory-anchored
+dynamic selector that converts hidden-state contextualisation deltas
+into per-layer capability directions and uses them as a
+$\lambda$-controlled multiplicative anchor on top of a fixed
+reward--advantage diagnostic consensus base. Third, we establish a
+stability guarantee for the trajectory anchor, showing that its
+epoch-to-epoch drift is controlled by the learning-rate schedule
+under a positive eigenvalue gap; the guarantee concerns the
+structural anchor rather than any particular scalar reward or advantage
+ranking rule. Finally, we empirically evaluate \textsc{TADS} across
+model scales, instruction-tuning datasets, and benchmark families,
+showing improvements over strong static, seed-based, and dynamic
+baselines with less than $0.5\%$ wall-clock overhead, while
+$\lambda$ ablations isolate the contribution of the trajectory
+anchor.

@@ -1,0 +1,57 @@
+% =====================================================================
+%  Section 5: Discussion
+% =====================================================================
+\section{Discussion}
+\label{sec:discussion}
+
+\paragraph{What TADS delivers.}
+\textsc{TADS} adds a representation-level structural signal to
+dynamic instruction-tuning data selection. The no-anchor base ranks
+candidates by the reward--advantage diagnostic consensus score
+$\mathcal{R}_i^{(t)}a_i^{(t)}$; \textsc{TADS} keeps this base fixed
+and multiplies it by a trajectory-anchor factor. Thus
+$\lambda=0$ recovers the same consensus base, while $\lambda>0$
+isolates the contribution of hidden-state trajectory alignment.
+
+The key contribution is the anchor, not a new selection objective. The
+anchor is model-intrinsic, requiring no seed examples, validation
+labels, external judges, or auxiliary scorers. It is also
+stability-controlled: under a positive eigengap, its movement is
+bounded at the learning-rate scale. The guarantee therefore concerns
+the structural component introduced by \textsc{TADS}, not the
+reward--advantage product itself.
+
+\paragraph{Why the anchor helps.}
+Dynamic selection based only on scalar reward or advantage signals can
+be unstable in multi-task instruction pools. In particular, the
+variance-ratio weight used to combine difficulty and uncertainty can
+drift with task composition because it mixes within-task and
+between-task variance (Eq.~\ref{eq:total-variance}). The trajectory
+anchor adds a pool-level geometric signal: it favours samples aligned
+with the representation direction the model is currently shaping.
+
+This also separates \textsc{TADS} from dynamic data selection for
+RLVR, such as DOTS~\cite{sun2025dots}. DOTS selects GRPO questions
+using rollout outcomes and verifiable rewards; \textsc{TADS}
+selects supervised instruction--response pairs using hidden-state
+geometry. DOTS is therefore an important related method, but not a
+directly runnable baseline for our SFT setting, where automatic
+verifiers, binary rewards, and rollout groups are unavailable by
+default.
+
+\paragraph{Implications and limitations.}
+The stability bound makes the anchor a reproducible structural
+object rather than probe noise. The eigengap $\gamma^{(t)}$ also
+serves as a diagnostic: when it is large, the anchor is sharply
+identified; when the covariance becomes nearly isotropic, the anchor
+weakens and the method naturally reduces toward the no-anchor
+consensus base.
+
+\textsc{TADS} currently targets text-only SFT with single-sequence
+instruction--response pairs and a rank-one anchor per layer. Future
+extensions include turn-aware anchors for multi-turn dialogue,
+separate anchors for multimodal representations, and rank-$r$
+eigenspace anchors for samples combining multiple skills. Extending
+trajectory anchoring to RL fine-tuning would require a different
+experimental setup, since prompts, sampled responses, rollouts, and
+reward-conditioned states define different possible anchor spaces.

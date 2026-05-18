@@ -1,0 +1,85 @@
+% =====================================================================
+%  Section 2: Related Work
+% =====================================================================
+\section{Related Work}
+\label{sec:related}
+
+Instruction-tuning data selection has been studied through both
+static and dynamic criteria. Quality-based methods assign each
+candidate a global utility score, either using a strong external
+judge, as in AlpaGasus~\cite{alpagasus}, or a learned quality
+estimator, as in CPQS~\cite{cpqs2026}. These methods are simple and
+task-agnostic, but a single pool-level ranking cannot adapt to a
+target capability or to the model's changing state during training.
+
+Target-conditioned methods define usefulness relative to examples
+that represent a desired capability. Influence- and gradient-based
+approaches such as LESS~\cite{less} score candidates by their
+gradient similarity to a small validation or few-shot target set,
+while Approx-LESS~\cite{approxless} improves scalability by
+predicting influence scores from a subset of gradient features.
+Another line uses representation geometry rather than gradients:
+NAIT~\cite{nait2026} extracts hidden-state capability directions
+from in-domain seed examples and selects candidates aligned with
+those directions. These approaches can produce capability-aligned
+subsets, but their selection criterion is fixed before training and
+depends on seed or validation examples supplied by the practitioner.
+\paragraph{Dynamic data selection for RL fine-tuning.}
+A closely related but experimentally non-comparable line studies
+\emph{dynamic} data selection for RL fine-tuning with verifiable
+rewards (RLVR). DOTS~\cite{sun2025dots} targets GRPO training by
+selecting questions whose \emph{adaptive difficulty}---the
+policy-dependent rollout failure rate---is close to one half, where
+binary reward variation yields the strongest group-relative gradient
+signal. This makes DOTS an effective dynamic question-selection
+method for RLVR, but its signal is defined through rollout groups,
+verifiable rewards, and a learned difficulty predictor.
+
+DOTS and \textsc{TADS} both belong to dynamic data selection, but
+they are not interchangeable baselines. DOTS selects RLVR questions
+under GRPO; \textsc{TADS} selects supervised instruction--response
+pairs under SFT. Applying DOTS to our setting would require
+converting SFT data into verifiable RLVR questions and adding reward
+design, rollout generation, and difficulty prediction, thereby
+changing the objective, data unit, supervision source, and compute
+profile. We therefore treat DOTS as the closest dynamic selector in
+a different training regime, not as a directly runnable baseline for
+dynamic SFT data selection.
+
+\paragraph{Positioning of \textsc{TADS}.}
+\textsc{TADS} connects static representation-based selection and
+dynamic data selection by making dynamic instruction-tuning
+selection representation-aware. Static representation-based methods
+use hidden-state geometry, but their capability directions are fixed
+before training and typically depend on seed or target examples.
+Dynamic selectors adapt to the current model state, but their
+signals are usually scalar utilities---loss, uncertainty, reward, or
+policy weights---rather than structural directions in the model's
+evolving representation space.
+
+Our implementation uses an advantage-estimator dynamic selection pipeline
+that supplies two time-dependent signals for each candidate: a
+composite reward $\mathcal{R}_i^{(t)}$ and a learned advantage estimate
+$a_i^{(t)}$. We combine them as a fixed
+\emph{reward--advantage diagnostic consensus} ranking,
+$\mathcal{R}_i^{(t)}a_i^{(t)}$: a candidate receives a high base
+rank only when both the scalar reward signal and the advantage estimate
+support its selection. This is a selection-time ranking rule, not an
+additional training objective. \textsc{TADS} then adds a
+trajectory-derived structural factor on top of this fixed base
+ranking,
+\[
+s_i^{(t)}
+=
+\mathcal{R}_i^{(t)}a_i^{(t)}
+\left(
+1+\lambda\,\widetilde{\mathrm{align}}_i^{(t)}
+\right).
+\]
+Setting $\lambda=0$ recovers the same reward--advantage consensus base,
+while $\lambda>0$ tests whether representation-level trajectory
+alignment improves dynamic selection. Crucially, the trajectory
+anchor is defined independently of the reward and advantage signals.
+The stability guarantee therefore concerns the structural component
+introduced by \textsc{TADS}, not any particular scalar reward, advantage estimator,
+policy, or selection-time consensus rule.

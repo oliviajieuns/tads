@@ -1,0 +1,334 @@
+% =====================================================================
+%  Appendix
+% =====================================================================
+\appendix
+
+% =====================================================================
+\section{Proof of Theorem~\ref{thm:stability}}
+\label{app:proof-stability}
+
+This appendix proves the per-epoch and cumulative bounds of
+Theorem~\ref{thm:stability}, together with the score-transfer
+corollary used in Sec.~\ref{sec:method-core}. The proof has three
+steps: a Davis--Kahan angular bound, a conversion to Euclidean
+distance via sign calibration, and a transfer from anchor stability
+to the \textsc{TADS} score.
+
+\paragraph{Assumption interpretations.}
+Assumption~1 holds when parameter updates are learning-rate bounded
+and the map $\theta \mapsto h_l^{\mathrm{last}}(\cdot;\theta)$ is
+locally Lipschitz. Re-sampling the probe can add an
+$\eta_t$-independent term of order
+$O(|\widetilde{\mathcal{D}}|^{-1/2})$; empirically this term is small
+at the probe sizes used in our verification. Assumption~2
+($\gamma^{(t)}\ge\gamma_{\min}$) is checked in
+App.~\ref{app:thm-verification}. Assumption~3 is enforced by sign
+calibration in Alg.~\ref{alg:tads}.
+
+\subsection{Step 1: Angular bound}
+\label{app:step-angular}
+
+The Davis--Kahan $\sin\Theta$ theorem~\cite{daviskahan} states that
+for symmetric matrices $A,B$ with top unit eigenvectors $u,v$ and
+top eigengap $\delta=\lambda_1(A)-\lambda_2(A)>0$,
+\[
+\sin\Theta(u,v)\le \frac{\|A-B\|_F}{\delta},
+\qquad
+\Theta(u,v)=\arccos|\langle u,v\rangle|.
+\]
+Apply this with $A=\Sigma^{(t)}$, $B=\Sigma^{(t+1)}$,
+$\delta=\gamma^{(t)}\ge\gamma_{\min}$, and
+$\|\Sigma^{(t+1)}-\Sigma^{(t)}\|_F\le C_\Sigma\eta_t$. Then
+\begin{equation}
+  \sin\Theta\bigl(v_l^{(t+1)},v_l^{(t)}\bigr)
+  \le
+  \frac{C_\Sigma}{\gamma_{\min}}\eta_t .
+  \label{eq:angular-bound}
+\end{equation}
+
+\subsection{Step 2: Per-epoch and cumulative bounds}
+\label{app:step-euclidean}
+
+The angular bound is invariant to the PCA sign ambiguity. Sign
+calibration ensures
+$\langle v_l^{(t+1)},v_l^{(t)}\rangle>0$, so
+$\Theta\in[0,\pi/2)$. Hence
+\begin{equation}
+  \bigl\|v_l^{(t+1)}-v_l^{(t)}\bigr\|
+  =
+  2\sin(\Theta/2)
+  \le
+  2\sin\Theta
+  \le
+  \frac{2C_\Sigma}{\gamma_{\min}}\eta_t .
+  \label{eq:perepoch-bound}
+\end{equation}
+This is the per-epoch bound in Theorem~\ref{thm:stability}. Summing
+over epochs gives
+\begin{equation}
+  \bigl\|v_l^{(t+m)}-v_l^{(t)}\bigr\|
+  \le
+  \frac{2C_\Sigma}{\gamma_{\min}}
+  \sum_{s=t}^{t+m-1}\eta_s .
+  \label{eq:cumulative-bound-app}
+\end{equation}
+Under a decaying learning-rate schedule, the tail
+$\sum_{s\ge t}\eta_s$ shrinks with $t$, yielding the stated
+$\varepsilon$-stationarity.
+
+\subsection{Step 3: Score stability transfer}
+\label{app:score-stability}
+
+Write the \textsc{TADS} score as
+\[
+s_i^{(t)} = B_i^{(t)}A_i^{(t)},
+\qquad
+B_i^{(t)} := \mathcal{R}_i^{(t)}a_i^{(t)},
+\qquad
+A_i^{(t)} := 1+\lambda\widetilde{\mathrm{align}}_i^{(t)} .
+\]
+Here $B_i^{(t)}$ is the reward--advantage consensus base ranking and
+$A_i^{(t)}\in[1,1+\lambda]$ is the anchor factor.
+
+\begin{corollary}[Score stability transfer]
+\label{cor:score-stability}
+Assume $|B_i^{(t)}|\le B_{\max}$, the sequence-mean activations
+satisfy $\|\bar h_l(x_i;\theta_{t-1})\|\le H_{\max}$, and the
+min--max normalisation in Eq.~\ref{eq:align} has Lipschitz constant
+$L_{\mathrm{norm}}$. Then the anchor-induced score change satisfies
+\begin{equation}
+  \bigl|
+  B_i^{(t+1)}
+  \bigl(A_i^{(t+1)}-A_i^{(t)}\bigr)
+  \bigr|
+  \le
+  B_{\max}\lambda L_{\mathrm{norm}}H_{\max}
+  \frac{2C_\Sigma}{\gamma_{\min}}\eta_t
+  =
+  O(\lambda\eta_t).
+  \label{eq:cor-score-bound}
+\end{equation}
+\end{corollary}
+
+\begin{proof}
+By Cauchy--Schwarz,
+$\langle \bar h_l(x_i;\theta_{t-1}),v_l^{(t)}\rangle$ is
+$H_{\max}$-Lipschitz in $v_l^{(t)}$. Therefore the raw alignment
+changes by at most
+$H_{\max}\|v_l^{(t+1)}-v_l^{(t)}\|$. Composing with the
+$L_{\mathrm{norm}}$-Lipschitz min--max normalisation and applying
+Eq.~\ref{eq:perepoch-bound} gives
+\[
+|A_i^{(t+1)}-A_i^{(t)}|
+\le
+\lambda L_{\mathrm{norm}}H_{\max}
+\frac{2C_\Sigma}{\gamma_{\min}}\eta_t .
+\]
+Multiplying by $|B_i^{(t+1)}|\le B_{\max}$ proves
+Eq.~\ref{eq:cor-score-bound}.
+\end{proof}
+
+The corollary holds for any bounded base ranking score
+$B_i^{(t)}$. Thus the stability result concerns the trajectory
+anchor and its multiplicative factor; it is not tied to a particular
+reward, advantage estimator, or reward--advantage consensus rule.
+
+% =====================================================================
+\section{Experimental Setup Details}
+\label{app:setup-details}
+
+\paragraph{Hardware.}
+Experiments run on NVIDIA A-series 80GB GPUs with NVLink. The main
+LLaMA-2-7B experiments use a single multi-GPU node; the Qwen2.5-14B
+LoRA scaling study uses an $8\times$A100 node.
+
+\paragraph{Main experiment: LLaMA-2-7B full fine-tuning.}
+The main experiments fine-tune all parameters of
+LLaMA-2-7B~\cite{touvron2023llama2}. Training uses Adam
+($\beta_1=0.9$, $\beta_2=0.999$), learning rate $2\times10^{-5}$,
+cosine decay to zero, warmup ratio $0.03$, weight decay $0.1$, bf16
+precision, 3 epochs, batch size 128, and cutoff length 2{,}048. The
+configuration is held fixed across selection methods.
+
+\paragraph{Evaluation protocol.}
+We evaluate with lm-evaluation-harness~\cite{eval-harness} on nine
+tasks: MMLU, MMLU-Pro, GSM8K, SVAMP, HumanEval, MBPP, TydiQA,
+XQuAD, and BBH. Scores are reported per task and averaged into AVG.
+
+\paragraph{\textsc{TADS}-specific hyperparameters.}
+The default probe size is
+$|\widetilde{\mathcal{D}}_t|=1{,}024$. The trajectory anchor is
+refreshed each epoch, alignment is averaged over all transformer
+layers, and the default anchor weight is $\lambda=1.0$.
+
+\paragraph{Reward--advantage consensus base.}
+At each refresh step $t$ we form a composite reward
+\[
+\mathcal{R}_i^{(t)}
+=
+w^{(t)}\mathcal{L}_i^{(t)}
++
+\bigl(1-w^{(t)}\bigr)\mathcal{H}_i^{(t)},
+\]
+with $w^{(t)}$ defined in Eq.~\ref{eq:w}, and a per-sample
+\emph{advantage estimate} $a_i^{(t)} \in (0,1)$.
+
+\paragraph{Advantage-estimator architecture and training
+(implementation device).}
+We obtain $a_i^{(t)}$ from a small actor--critic network: a
+two-layer MLP trunk ($256{\to}256$, ReLU) feeds a
+$\mathrm{Beta}(\alpha_t(h_i),\beta_t(h_i))$ actor head and a scalar
+critic head; the actor's bounded sample
+$a_i \sim \mathrm{Beta}(\cdot,\cdot) \in (0,1)$ is our advantage
+estimate. The network is trained with a clipped PPO surrogate on
+$\mathcal{R}_i^{(t)}$. PPO here is an implementation device for
+fitting a bounded per-sample advantage estimator -- any procedure
+that produces a learned, non-negative, bounded $a_i$ correlated
+with $\mathcal{R}_i$ would substitute. The selection rule
+\eqref{eq:score} consumes $a_i$ only as a scalar value.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+hyperparameter & value \\
+\midrule
+trunk            & MLP $256 \to 256$, ReLU \\
+heads            & $\alpha,\beta$ (softplus${+}1$), $V$ (linear) \\
+actor distribution & $\mathrm{Beta}(\alpha,\beta)$, sample clamped to $[10^{-6}, 1{-}10^{-6}]$ \\
+advantage mode   & group-relative (default); GAE available \\
+GAE $\gamma$     & $0.99$ \\
+GAE $\lambda$    & $0.95$ \\
+PPO clip $\epsilon$ & $0.2$ (actor and value) \\
+PPO epochs       & $4$ \\
+mini-batch       & $1024$ \\
+learning rate    & $3\times 10^{-4}$ \\
+entropy coef.    & $0.01$ \\
+value coef.      & $0.5$ \\
+grad-norm clip   & $1.0$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent Candidates are ranked by the reward--advantage consensus
+score $\mathcal{R}_i^{(t)} a_i^{(t)}$ at $\lambda=0$, and by the
+full \textsc{TADS} score \eqref{eq:score} at $\lambda>0$.
+
+% =====================================================================
+\section{$\lambda$-Ablation and Qwen2.5-0.5B Sanity Track}
+\label{app:setup-validation}
+
+Before the main experiments, we validate the pipeline on
+Qwen2.5-0.5B. The setup uses full fine-tuning on Alpaca-GPT4
+($52{,}002$ pairs), selection ratio $\rho=10\%$, 3 epochs, AdamW,
+learning rate $2\times10^{-5}$, cosine schedule with $10\%$ warmup,
+and evaluation on MMLU and GSM8K.
+
+The $\lambda$-ablation is reported in Table~\ref{tab:lambda-05b} in
+the main text. The curve is non-monotonic: the no-anchor consensus
+base is improved by small non-zero $\lambda$, while overly large
+$\lambda$ values reduce the gain. This supports the interpretation
+of the anchor as a bounded structural reweighting rather than a
+replacement for the base ranking.
+
+% =====================================================================
+\section{Scaling Study: Qwen2.5-14B}
+\label{app:scaling}
+
+We additionally test \textsc{TADS} on Qwen2.5-14B with LoRA to check
+whether the anchor remains inexpensive at larger scale.
+
+\paragraph{Setup.}
+Qwen2.5-14B is trained with LoRA ($r=16$, $\alpha=32$, dropout
+$0.05$; target modules
+$\{q,k,v,o,\mathrm{gate},\mathrm{up},\mathrm{down}\}$proj). The
+candidate pool is Alpaca-GPT4 ($N=52{,}002$), with 3 epochs, batch
+size 64, learning rate $2\times10^{-4}$, cosine schedule, 3\%
+warmup, and $8\times$A100 GPUs. The compared settings are Random,
+the no-anchor consensus base, \textsc{TADS}, and full-data
+fine-tuning.
+
+\paragraph{Cost.}
+The per-epoch cost breakdown is reported in
+Table~\ref{tab:cost-14b-main}. The forward pass and fine-tuning
+update are shared with the no-anchor consensus base; the
+\textsc{TADS}-only operations are trajectory-anchor PCA and
+alignment scoring over cached hidden states. These add roughly
+15 seconds to a $\sim$35-minute epoch, corresponding to less than
+$0.5\%$ overhead.
+
+\paragraph{Accuracy.}
+The Qwen2.5-14B accuracy table will report Random, no-anchor
+consensus base, \textsc{TADS}, and full-data fine-tuning under the
+same evaluation suite as the main experiments.
+
+% =====================================================================
+\section{Empirical Verification of Theorem~\ref{thm:stability}}
+\label{app:thm-verification}
+
+This appendix verifies that the anchor-stability theorem describes
+real training dynamics. We instrument a Qwen2.5-0.5B LoRA run on
+Alpaca-GPT4 and record the quantities appearing in
+Theorem~\ref{thm:stability}: eigengap, covariance drift, anchor
+displacement, sign consistency, and learning rate.
+
+\paragraph{Setup.}
+The verifier runs every 25 optimiser steps on a fixed
+2{,}000-sample probe. For each of the 24 decoder layers, it computes
+the top two eigenvalues of the contextualisation-delta covariance,
+the eigengap
+$\gamma_l^{(t)}=\lambda_1^{(t)}-\lambda_2^{(t)}$, the covariance
+drift $\|\Sigma_l^{(t+1)}-\Sigma_l^{(t)}\|_F$, and the anchor
+displacement
+$d_l^{(t)}=\|v_l^{(t+1)}-v_l^{(t)}\|$. The fixed probe removes
+probe-resampling noise from the diagnostic.
+
+\paragraph{Assumptions.}
+The eigengap stays positive on the monitored layers, with effective
+$\gamma_{\min}=0.050$. The trimmed covariance-drift estimate gives
+$\hat C_\Sigma=5.78\times10^3$. Sign calibration is stable: the
+measured sign-flip rate is $3.6\%$, below the $5\%$ tolerance used
+for the probabilistic sign-calibration check.
+
+\paragraph{Per-step bound.}
+At the constant operating point $\eta=2\times10^{-4}$, the empirical
+bound is
+\[
+\frac{2\hat C_\Sigma}{\gamma_{\min}}\eta
+=
+\frac{2\cdot 5.78\times10^3}{0.050}\cdot 2\times10^{-4}
+=
+46.24 .
+\]
+Across $1{,}496$ layer-refresh measurements, the measured anchor
+displacement never violates this bound. The median tightness is
+$1.46\times10^{-3}$ and the worst-case tightness is
+$7.4\times10^{-3}$.
+
+\paragraph{No-anchor diagnostic.}
+As a post-hoc comparison, we compute the same displacement
+diagnostic on a matched no-anchor consensus control
+(\texttt{use\_anchor=false}, $\lambda=0$). This control does not use
+the anchor for selection, but its hidden-state trajectory can still
+be measured. Compared with \textsc{TADS}, the no-anchor control has
+larger and more variable displacement statistics and fails the
+probabilistic sign-stability check, as summarised in
+Table~\ref{tab:dstep-spread}.
+
+% =====================================================================
+\section{In-Progress Empirical Study}
+\label{app:inprogress}
+
+The broader empirical study extends the main experiments along three
+axes. First, we scale across model sizes from Qwen2.5-0.5B to the
+7B-class main setting and Qwen2.5-14B. Second, we test robustness
+across additional instruction-tuning corpora beyond Alpaca-GPT4,
+including Evol-Instruct--style data. Third, we run additional
+ablations over selection ratio $\rho$, anchor refresh frequency,
+layer subsets, sign calibration, and probe size.
+
+The goal is to test whether a single \textsc{TADS} configuration
+continues to provide gains across model scales, datasets, and
+benchmark families, and whether the trajectory anchor remains a
+useful signal when the candidate pool distribution changes.

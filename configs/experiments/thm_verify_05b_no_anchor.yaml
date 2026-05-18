@@ -1,0 +1,68 @@
+# Theorem 1 verification -- RL+CR (no-anchor) contrastive cell.
+#
+# Purpose: produce the "RL+CR weight, no bound" curve for
+# Fig. fig:thm-main by RUNNING THE SAME VERIFIER on a configuration
+# that disables the anchor's stabilising effect on selection. The
+# anchor itself is still PCA'd at every refresh (so we still get
+# a d_step time series), but it does not enter the selection score
+# (tads.use_anchor=false, tads.lam=0). Without the anchor smoothing
+# the per-refresh d_step is expected to spike erratically and
+# exceed the bound calibrated for the TADS run --- the visual
+# contrast the figure needs.
+#
+# Other knobs vs the D cell (configs/experiments/thm_verify_05b.yaml):
+#   * learning_rate 2e-4 -> 5e-4 (amplifies covariance volatility
+#     by ~2.5x; we are NOT testing the bound's tightness here, only
+#     the absence of one).
+#   * everything else identical (probe 2000, refresh every 25,
+#     gamma threshold etc.) so the two curves can share an axis.
+#
+# Expected outcome:
+#   * Anchor d_step time series is much more erratic than the D
+#     cell's; several refreshes exceed (2 C_sigma / gamma_min) * eta
+#     when the bound is computed with the D cell's C_sigma. This
+#     populates the grey-dotted curve in Fig. fig:thm-main.
+
+defaults:
+  - configs/base.yaml
+  - configs/methods/tads.yaml       # keep verifier hook (method == tads gate)
+  - configs/models/qwen2.5-0.5b.yaml
+  - configs/modes/lora.yaml
+
+output_subdir: light/thm_verify_rlcr/no_anchor
+selection_ratio: 0.1
+train_epochs: 3
+batch_size: 4
+grad_accum: 2
+episode_batch_size: 2
+
+# Anchor OFF for selection (the whole point of this cell), but the
+# anchor is still PCA'd by the verifier for measurement.
+tads:
+  lam: 0.0
+  use_anchor: false
+
+# Constant lr at 2.5x the D cell to amplify volatility.
+lr_schedule: constant
+learning_rate: 5.0e-4
+
+lora:
+  r: 8
+  alpha: 16
+  dropout: 0.05
+
+anchor:
+  layer_indices: all
+  layer_idx: -1
+  max_samples_for_pca: 2000
+  pca_batch_size: 16
+
+verification:
+  enabled: true
+  refresh_every_optstep: 25
+  save_anchors: true
+  track_delta_sigma: true
+  probe_size: 2000
+  probe_seed: 4242
+  output_subdir: thm_verification
+  record_baseline: true

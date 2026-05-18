@@ -90,35 +90,53 @@ def _broadcast_selection(selected, *, epoch=0, output_dir=None):
     r = dist.get_rank()
     SRC = 0
 
+    # Tensor-based broadcast (NOT broadcast_object_list -- that path
+    # tripped a NCCL OOM ``Tried to allocate more than 1EB memory``
+    # bug on this PyTorch build, because the internal size-broadcast
+    # under NCCL returned a garbage object_size that torch.empty
+    # interpreted as ~2**63 bytes).
+    #
+    # We instead allocate a fixed-size int64 buffer on every rank,
+    # store the selection length at index 0 and the indices in
+    # [1..len], and use a plain dist.broadcast on the whole buffer.
+    # Cheap (~MAX_K * 8 bytes), no pickle, no auto-sizing footgun.
+    MAX_K = 200_000  # comfortable upper bound; alpaca 52K, wizardLM 70K
+    device = torch.device(f"cuda:{local_rank()}")
+    buf = torch.zeros(MAX_K + 1, dtype=torch.int64, device=device)
+
     if r == SRC:
         if hasattr(selected, "tolist"):
             selected = selected.tolist()
         elif not isinstance(selected, list):
             selected = list(selected)
         selected = [int(x) for x in selected]
-        logger.info(
-            "[sel-share] rank=0 normalized selection | len=%d | first5=%s",
-            len(selected), selected[:5],
-        )
-        obj_list = [selected]
-    else:
-        obj_list = [None]
-
-    # NCCL collective. Holds ranks 1..N-1 for the entire duration of
-    # rank 0's collect_episode + scoring. The init_process_group timeout
-    # is 6 h (see train.py), well beyond any per-epoch rank-0 work.
-    dist.broadcast_object_list(obj_list, src=SRC)
-    result = obj_list[0]
-
-    if r != SRC:
-        if not isinstance(result, list):
-            raise RuntimeError(
-                f"[rank {r}] broadcast returned wrong shape: "
-                f"type={type(result).__name__}",
+        k = len(selected)
+        if k > MAX_K:
+            raise ValueError(
+                f"[sel-share] selection size {k} exceeds MAX_K={MAX_K}; "
+                f"raise MAX_K in tads/pipelines/selection.py",
             )
         logger.info(
+            "[sel-share] rank=0 normalized selection | len=%d | first5=%s",
+            k, selected[:5],
+        )
+        buf[0] = k
+        if k > 0:
+            buf[1:1 + k] = torch.tensor(
+                selected, dtype=torch.int64, device=device,
+            )
+
+    # Single tensor broadcast. NCCL handles this path without the
+    # broadcast_object_list size-tensor bug.
+    dist.broadcast(buf, src=SRC)
+
+    k = int(buf[0].item())
+    result = buf[1:1 + k].cpu().tolist()
+
+    if r != SRC:
+        logger.info(
             "[sel-share] rank=%d received selection broadcast | len=%d",
-            r, len(result),
+            r, k,
         )
 
     # Informational on-disk copy for cache-reuse on rank 0 only.

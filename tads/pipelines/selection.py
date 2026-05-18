@@ -90,19 +90,29 @@ def _broadcast_selection(selected, *, epoch=0, output_dir=None):
     r = dist.get_rank()
     SRC = 0
 
-    # Tensor-based broadcast (NOT broadcast_object_list -- that path
-    # tripped a NCCL OOM ``Tried to allocate more than 1EB memory``
-    # bug on this PyTorch build, because the internal size-broadcast
-    # under NCCL returned a garbage object_size that torch.empty
-    # interpreted as ~2**63 bytes).
+    # File-based selection share with an NCCL barrier as the
+    # synchronisation point. Two earlier paths failed on this cluster:
+    #   * The original poll-on-disk approach raced -- one worker saw
+    #     the ``.ready`` sentinel and others did not for the same
+    #     minute (NFS-like metadata inconsistency on the group-volume
+    #     filesystem). PR #22 commit message documents the deadlock.
+    #   * The pure-NCCL tensor broadcast (PR #23) returned garbage
+    #     contents to ranks 1..N-1 (logged a length of
+    #     -4883243382067118805 from a int64 broadcast that did not
+    #     transfer data), then the empty-selection guard in train.py
+    #     fired. NCCL int64 + this PyTorch / driver combo is the most
+    #     likely culprit; no quick mitigation, so we sidestep it.
     #
-    # We instead allocate a fixed-size int64 buffer on every rank,
-    # store the selection length at index 0 and the indices in
-    # [1..len], and use a plain dist.broadcast on the whole buffer.
-    # Cheap (~MAX_K * 8 bytes), no pickle, no auto-sizing footgun.
-    MAX_K = 200_000  # comfortable upper bound; alpaca 52K, wizardLM 70K
-    device = torch.device(f"cuda:{local_rank()}")
-    buf = torch.zeros(MAX_K + 1, dtype=torch.int64, device=device)
+    # This implementation keeps the data path on the filesystem (which
+    # we know carries the selection correctly when it eventually does
+    # become visible) and uses dist.barrier() for synchronisation.
+    # dist.barrier() under NCCL is a small collective that does work
+    # on this driver, and the init_process_group timeout was bumped to
+    # 6 h in PR #22 so it holds across rank 0's long collect_episode
+    # without the watchdog firing.
+    base = Path(output_dir) if output_dir is not None else Path(tempfile.gettempdir())
+    base.mkdir(parents=True, exist_ok=True)
+    sel_path = base / f"_selection_epoch{epoch}.json"
 
     if r == SRC:
         if hasattr(selected, "tolist"):
@@ -110,33 +120,59 @@ def _broadcast_selection(selected, *, epoch=0, output_dir=None):
         elif not isinstance(selected, list):
             selected = list(selected)
         selected = [int(x) for x in selected]
-        k = len(selected)
-        if k > MAX_K:
-            raise ValueError(
-                f"[sel-share] selection size {k} exceeds MAX_K={MAX_K}; "
-                f"raise MAX_K in tads/pipelines/selection.py",
-            )
         logger.info(
             "[sel-share] rank=0 normalized selection | len=%d | first5=%s",
-            k, selected[:5],
+            len(selected), selected[:5],
         )
-        buf[0] = k
-        if k > 0:
-            buf[1:1 + k] = torch.tensor(
-                selected, dtype=torch.int64, device=device,
-            )
 
-    # Single tensor broadcast. NCCL handles this path without the
-    # broadcast_object_list size-tensor bug.
-    dist.broadcast(buf, src=SRC)
+        # Atomic write of the selection JSON.
+        tmp_path = sel_path.with_suffix(".json.tmp")
+        with open(tmp_path, "w") as f:
+            json.dump(selected, f)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, sel_path)
+        # Extra paranoia for shared filesystems where metadata can lag
+        # behind data: force a global sync after the rename so the new
+        # inode is visible to other nodes via NFS-style caches.
+        try:
+            os.sync()
+        except OSError:
+            # Some constrained environments forbid os.sync; the fsync
+            # above plus the upcoming barrier should still be enough.
+            pass
 
-    k = int(buf[0].item())
-    result = buf[1:1 + k].cpu().tolist()
-
-    if r != SRC:
         logger.info(
-            "[sel-share] rank=%d received selection broadcast | len=%d",
-            r, k,
+            "[sel-share] rank=0 WROTE %s (%d ids)",
+            sel_path, len(selected),
+        )
+
+    # All ranks meet here. Rank 0 reaches it after the write completes;
+    # non-rank-0 ranks reach it immediately on function entry and block
+    # inside the collective until rank 0 arrives. After the barrier
+    # returns, every rank has crossed the same wall-clock instant, so
+    # the filesystem state from before the barrier is committed across
+    # the cluster's view.
+    dist.barrier()
+
+    if r == SRC:
+        result = selected
+    else:
+        if not sel_path.exists():
+            raise RuntimeError(
+                f"[rank {r}] after barrier the selection file "
+                f"{sel_path} is still missing -- the filesystem did "
+                f"not propagate the rank-0 write across the cluster.",
+            )
+        with open(sel_path, "r") as f:
+            result = json.load(f)
+        if not isinstance(result, list):
+            raise RuntimeError(
+                f"[rank {r}] selection file has wrong shape: "
+                f"type={type(result).__name__}",
+            )
+        logger.info(
+            "[sel-share] rank=%d READ %s len=%d", r, sel_path, len(result),
         )
 
     # Informational on-disk copy for cache-reuse on rank 0 only.

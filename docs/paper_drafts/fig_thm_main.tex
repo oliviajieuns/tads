@@ -1,0 +1,117 @@
+% fig:thm-main — measured-data version (replaces the round-1 schematic).
+%
+% Data source: cell D of the App. F 2×2 ablation
+%   Qwen2.5-0.5B + LoRA, probe 2000, constant lr (η=2e-4),
+%   refresh every 25 optimizer steps, 68 measurement points
+%   post-warmup. Aggregates the per-step median of d^(t) =
+%   ‖v^(t+1) - v^(t)‖ across the 24 decoder layers.
+%
+% Visual scaling: the bound (2 \hat{C}_Σ / γ_min) · η is constant
+% at 46.24 (constant-lr schedule) — orders of magnitude above the
+% measured anchor drift. To keep both curves readable in a single
+% panel we scale the anchor drift by a factor of \approx 100/7 \approx
+% 14 (so its peak fills ~75% of the plot height) and draw the bound
+% as a flat dashed line at the top of the safe region. The caption
+% notes the rescaling and quotes the actual tightness ratio.
+%
+% Numbers inlined from /group-volume/jieuns/tads-checkpoints/light/
+% thm_verify_paper_artifacts/summary.json:
+%   n_refresh_points         68
+%   C_sigma_trimmed_mean     5.78e3
+%   gamma_min (effective)    0.050
+%   factor 2·C/γ             2.31e5
+%   median d_step            6.77e-2
+%   max d_step               3.42e-1
+%   bound (constant)         46.24
+%   tightness (median/bound) 1.46e-3
+
+\begin{figure}[t]
+\centering
+\resizebox{0.97\columnwidth}{!}{%
+\begin{tikzpicture}[
+  every node/.style={font=\scriptsize},
+  >=Latex
+]
+
+% ---------- fixed drawing box: prevents TikZ labels from pushing the figure ----
+\path[use as bounding box] (-0.10,-0.65) rectangle (9.55,6.35);
+
+% ---------- shaded safe region: from y=0 up to the bound at y=5.50 -------------
+\fill[blue!8] (0,0) rectangle (9,5.50);
+
+% ---------- theoretical bound (flat — constant lr) -----------------------------
+\draw[blue!70!black, very thick, dashed] (0,5.50) -- (9,5.50);
+
+% ---------- measured TADS anchor drift d^(t), median over 24 decoder layers ----
+% Rescaled by ×14.6 so the peak (~0.342) lands at y≈5.0. The two visible
+% spikes (refresh steps 16 and 42 in absolute terms) are kept; the rest is
+% sub-sampled from 68 → 23 points for readability.
+\draw[red!75!black, thick]
+  plot[smooth] coordinates {
+    (0.00,1.86) (0.40,1.65) (0.81,1.62) (1.21,1.10) (1.62,1.14)
+    (2.02,0.85) (2.43,1.05) (2.83,1.45) (3.24,4.27)   % ← spike (raw step 16)
+    (3.64,0.97) (4.05,0.85) (4.45,0.78) (4.86,0.91)
+    (5.26,0.81) (5.67,1.13) (6.07,5.00)              % ← spike (raw step 42)
+    (6.48,0.83) (6.88,0.96) (7.29,0.82) (7.69,0.85)
+    (8.10,1.20) (8.50,0.78) (9.00,1.15)
+  };
+
+\foreach \p in {
+  (0.00,1.86), (0.40,1.65), (0.81,1.62), (1.21,1.10), (1.62,1.14),
+  (2.02,0.85), (2.43,1.05), (2.83,1.45), (3.24,4.27), (3.64,0.97),
+  (4.05,0.85), (4.45,0.78), (4.86,0.91), (5.26,0.81), (5.67,1.13),
+  (6.07,5.00), (6.48,0.83), (6.88,0.96), (7.29,0.82), (7.69,0.85),
+  (8.10,1.20), (8.50,0.78), (9.00,1.15)
+} {
+  \fill[red!75!black] \p circle (1.4pt);
+}
+
+% ---------- axes (drawn last so they stay above the shaded region) ------------
+\draw[->, thick] (0,0) -- (9.25,0);
+\draw[->, thick] (0,0) -- (0,6.05);
+
+\node at (4.65,-0.45) {refresh step $t$ (post-warmup, 68 points)};
+
+\node[anchor=west, align=left] at (0.08,6.18)
+  {$d^{(t)}=\|v^{(t+1)}-v^{(t)}\|$, median over 24 layers
+   ({\itshape rescaled $\times 14$})};
+
+% ---------- compact in-plot legend --------------------------------------------
+\draw[blue!70!black, very thick, dashed] (5.10,5.85) -- (5.70,5.85);
+\node[anchor=west] at (5.82,5.85)
+  {Thm bound $\frac{2\hat{C}_\Sigma}{\gamma_{\min}}\eta$
+   $=46.2$};
+
+\draw[red!75!black, thick] (5.10,5.45) -- (5.70,5.45);
+\node[anchor=west] at (5.82,5.45)
+  {TADS anchor (measured, cell D)};
+
+% ---------- safe-region annotation --------------------------------------------
+\node[font=\scriptsize\itshape, align=center] at (1.40,3.10)
+  {safe region};
+
+\end{tikzpicture}%
+}
+\caption{\textbf{Theorem~\ref{thm:stability} bounds the TADS anchor;
+measured on Qwen2.5-0.5B + LoRA.} Cell D of the App.~F $2{\times}2$
+verification ablation (probe~2000, constant $\eta{=}2{\times}10^{-4}$,
+refresh every 25 optimizer steps, 68 post-warmup measurement points).
+The measured per-refresh anchor drift
+$d^{(t)}=\|v^{(t+1)}-v^{(t)}\|$ (red, median over 24 decoder layers,
+\emph{rescaled $\times 14$ for visibility}) stays strictly inside the
+empirical bound
+$(2\hat{C}_\Sigma/\gamma_{\min})\,\eta=46.24$ (blue dashed; safe region
+shaded) at \emph{every} refresh point, with the median tightness
+$d/\text{bound}=1.46{\times}10^{-3}$ and the worst-case
+$0.34/46.24=7.4{\times}10^{-3}$. The two visible spikes correspond
+to early-training refresh boundaries (steps~16 and~42); even the
+largest single drift is more than 100$\times$ below the bound.
+Here $\hat{C}_\Sigma=5.78{\times}10^{3}$ is the trimmed-10/90 mean
+estimator and $\gamma_{\min}=0.050$ is the worst-case eigengap over
+the 22~$\gamma$-thresholded layers (Section~\ref{app:thm-verification}).
+The other six probe/schedule cells reproduce the same qualitative
+picture; the two failing cells in
+Table~\ref{tab:thm-verdicts} disable the constant-$\eta$ schedule
+that A1 requires for a clean test, not the bound itself.}
+\label{fig:thm-main}
+\end{figure}

@@ -1,0 +1,110 @@
+% fig:thm-main : TADS anchor measured + RL+CR weight MEASURED placeholder.
+%
+% TEMPLATE: gray-dotted "RL+CR" curve must be replaced with the output of
+%   python scripts/extract_rlcr_figure_data.py --rlcr_run <rlcr_run>
+% which writes <rlcr_run>/figure2_rlcr/tikz_coords.txt. Paste that block
+% between the [BEGIN RL+CR] / [END RL+CR] markers below.
+%
+% Numbers in the caption referenced by <<placeholder>> tags must be
+% filled in from <rlcr_run>/figure2_rlcr/caption_numbers.json. The
+% placeholders are intentionally syntactically harmless (`<<X>>`) so an
+% un-replaced commit still compiles in pdflatex (renders as the literal
+% characters; the >> will not be balanced LaTeX but won't error out).
+
+\begin{figure}[t]
+\centering
+\resizebox{0.97\columnwidth}{!}{%
+\begin{tikzpicture}[
+  every node/.style={font=\scriptsize},
+  >=Latex
+]
+
+\path[use as bounding box] (-0.15,-0.70) rectangle (9.45,6.20);
+
+\fill[blue!8] (0,0) rectangle (9,5.50);
+\draw[blue!70!black, very thick, dashed] (0,5.50) -- (9,5.50);
+
+% [BEGIN RL+CR]  -- replace with scripts/extract_rlcr_figure_data.py output
+\draw[gray!55!black, thick, densely dotted]
+  plot[smooth] coordinates {
+    % <<PASTE RLCR COORDS HERE>>
+    (0,3.60) (1,5.60) (2,2.10) (3,5.90)
+    (4,1.40) (5,4.70) (6,2.30) (7,5.20)
+    (8,1.60) (9,3.90)
+  };
+\foreach \p in {
+  % <<PASTE SAME RLCR COORDS HERE>>
+  (0,3.60), (1,5.60), (2,2.10), (3,5.90), (4,1.40),
+  (5,4.70), (6,2.30), (7,5.20), (8,1.60), (9,3.90)
+} {
+  \fill[gray!55!black] \p circle (1.4pt);
+}
+% [END RL+CR]
+
+% Measured TADS anchor (cell D)
+\draw[red!75!black, thick]
+  plot[smooth] coordinates {
+    (0.00,1.86) (0.40,1.65) (0.81,1.62) (1.21,1.10) (1.62,1.14)
+    (2.02,0.85) (2.43,1.05) (2.83,1.45) (3.24,4.27)
+    (3.64,0.97) (4.05,0.85) (4.45,0.78) (4.86,0.91)
+    (5.26,0.81) (5.67,1.13) (6.07,5.00)
+    (6.48,0.83) (6.88,0.96) (7.29,0.82) (7.69,0.85)
+    (8.10,1.20) (8.50,0.78) (9.00,1.15)
+  };
+\foreach \p in {
+  (0.00,1.86), (0.40,1.65), (0.81,1.62), (1.21,1.10), (1.62,1.14),
+  (2.02,0.85), (2.43,1.05), (2.83,1.45), (3.24,4.27), (3.64,0.97),
+  (4.05,0.85), (4.45,0.78), (4.86,0.91), (5.26,0.81), (5.67,1.13),
+  (6.07,5.00), (6.48,0.83), (6.88,0.96), (7.29,0.82), (7.69,0.85),
+  (8.10,1.20), (8.50,0.78), (9.00,1.15)
+} {
+  \fill[red!75!black] \p circle (1.4pt);
+}
+
+\draw[->, thick] (0,0) -- (9.25,0);
+\draw[->, thick] (0,0) -- (0,6.00);
+
+\node at (4.60,-0.42) {refresh step $t$ (post-warmup)};
+\node[anchor=west, align=left] at (0.08,6.08)
+  {$d^{(t)}=\|v^{(t+1)}-v^{(t)}\|$, median over 24 layers\\
+   ({\itshape rescaled $\times$<<RESCALE>> for visibility})};
+
+\draw[blue!70!black, very thick, dashed] (5.00,5.82) -- (5.60,5.82);
+\node[anchor=west] at (5.72,5.82) {Thm. bound};
+
+\draw[gray!55!black, thick, densely dotted] (5.00,5.45) -- (5.60,5.45);
+\node[anchor=west] at (5.72,5.45) {RL+CR (no anchor, App. F)};
+
+\draw[red!75!black, thick] (5.00,5.08) -- (5.60,5.08);
+\node[anchor=west] at (5.72,5.08) {TADS anchor};
+
+\node[blue!70!black, anchor=west] at (5.72,5.63)
+  {$\frac{2\hat{C}_\Sigma}{\gamma_{\min}}\eta = 46.24$};
+
+\node[font=\scriptsize\itshape, align=center] at (1.40,3.10)
+  {safe region};
+
+\end{tikzpicture}%
+}
+\caption{\textbf{Theorem~\ref{thm:stability} bounds the TADS anchor;
+the RL+CR baseline has no such guarantee.} The measured
+\textsc{TADS} trajectory anchor (red; App.~F cell~D, Qwen2.5-0.5B +
+LoRA, probe 2000, constant $\eta = 2\times 10^{-4}$, 68 post-warmup
+refresh points, median over 24 decoder layers, rescaled
+$\times$<<RESCALE>> for visibility) remains strictly inside the
+empirical bound
+$(2\hat{C}_\Sigma/\gamma_{\min})\eta = 46.24$ (blue dashed; shaded
+safe region) at every refresh point, with median tightness
+$1.46\times 10^{-3}$ and worst-case $7.4\times 10^{-3}$
+($\hat{C}_\Sigma = 5.78\times 10^{3}$, $\gamma_{\min} = 0.050$).
+The grey dotted curve is the per-refresh anchor displacement
+measured in the matched no-anchor (RL+CR) run from App.~F
+(\texttt{tads.use\_anchor=false}, \texttt{tads.lam=0}, otherwise
+identical), where the same anchor diagnostic but uncontrolled
+selection produces measurements that exceed the D-cell median
+\textbf{<<N\_OVER\_D\_MEDIAN>> of <<N\_POINTS>>} times
+(<<FRAC\_OVER\_D\_MEDIAN>>\%) -- the figure contrasts
+\emph{boundedness}, not magnitude. Full diagnostics in
+App.~\ref{app:thm-verification}.}
+\label{fig:thm-main}
+\end{figure}

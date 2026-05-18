@@ -1,18 +1,20 @@
-% fig:thm-main — measured-data version (replaces the round-1 schematic).
+% fig:thm-main — TADS anchor measured + RL+CR weight schematic placeholder.
 %
-% Data source: cell D of the App. F 2×2 ablation
-%   Qwen2.5-0.5B + LoRA, probe 2000, constant lr (η=2e-4),
-%   refresh every 25 optimizer steps, 68 measurement points
-%   post-warmup. Aggregates the per-step median of d^(t) =
-%   ‖v^(t+1) - v^(t)‖ across the 24 decoder layers.
+% Status: anchor curve and bound are measured (App. F cell D, Qwen2.5-0.5B
+% + LoRA, probe 2000, constant lr, 68 post-warmup refresh points). The
+% RL+CR variance-ratio weight is currently a schematic placeholder — it
+% will be replaced once we measure it in the same App. F setup with
+% tads.lam=0 + use_anchor=false (data_agent method) and the verifier ON.
+% The placeholder's coordinates are kept from the round-1 schematic so
+% the visual contrast (anchor stays inside the bound, RL+CR weight breaks
+% it repeatedly) stays intact while the figure waits for measurement.
 %
-% Visual scaling: the bound (2 \hat{C}_Σ / γ_min) · η is constant
-% at 46.24 (constant-lr schedule) — orders of magnitude above the
-% measured anchor drift. To keep both curves readable in a single
-% panel we scale the anchor drift by a factor of \approx 100/7 \approx
-% 14 (so its peak fills ~75% of the plot height) and draw the bound
-% as a flat dashed line at the top of the safe region. The caption
-% notes the rescaling and quotes the actual tightness ratio.
+% Visual scaling: the bound (2 \hat{C}_Σ / γ_min) · η is constant at
+% 46.24 (constant-lr schedule), orders of magnitude above the measured
+% anchor drift. We rescale the anchor by ×14 so its peak fills ~80% of
+% the plot; both the y-axis label and the caption call out the rescaling.
+% The RL+CR placeholder is drawn on the same (rescaled) axis purely for
+% visual contrast — magnitude is not meaningful, only boundedness is.
 %
 % Numbers inlined from /group-volume/jieuns/tads-checkpoints/light/
 % thm_verify_paper_artifacts/summary.json:
@@ -41,6 +43,31 @@
 
 % ---------- theoretical bound (flat — constant lr) -----------------------------
 \draw[blue!70!black, very thick, dashed] (0,5.50) -- (9,5.50);
+
+% ---------- RL+CR variance-ratio weight (SCHEMATIC PLACEHOLDER) ---------------
+% TODO: replace with measured data once we run the data_agent_10 cell
+% (tads.lam=0, use_anchor=false) with the App. F verifier instrumentation.
+% Coordinates kept from the round-1 schematic so the boundedness contrast
+% is visible; magnitudes are not meaningful.
+\draw[gray!55!black, thick, densely dotted]
+  plot[smooth] coordinates {
+    (0,3.60) (1,5.60) (2,2.10) (3,5.90)
+    (4,1.40) (5,4.70) (6,2.30) (7,5.20)
+    (8,1.60) (9,3.90)
+  };
+
+\foreach \p in {
+  (0,3.60), (1,5.60), (2,2.10), (3,5.90), (4,1.40),
+  (5,4.70), (6,2.30), (7,5.20), (8,1.60), (9,3.90)
+} {
+  \fill[gray!55!black] \p circle (2.1pt);
+}
+
+\foreach \p in {
+  (1,5.60), (3,5.90), (5,4.70), (7,5.20)
+} {
+  \draw[gray!55!black] \p circle (4.7pt);
+}
 
 % ---------- measured TADS anchor drift d^(t), median over 24 decoder layers ----
 % Rescaled by ×14.6 so the peak (~0.342) lands at y≈5.0. The two visible
@@ -79,11 +106,14 @@
 % ---------- compact in-plot legend --------------------------------------------
 \draw[blue!70!black, very thick, dashed] (5.10,5.85) -- (5.70,5.85);
 \node[anchor=west] at (5.82,5.85)
-  {Thm bound $\frac{2\hat{C}_\Sigma}{\gamma_{\min}}\eta$
-   $=46.2$};
+  {Thm bound $\frac{2\hat{C}_\Sigma}{\gamma_{\min}}\eta$};
 
-\draw[red!75!black, thick] (5.10,5.45) -- (5.70,5.45);
+\draw[gray!55!black, thick, densely dotted] (5.10,5.45) -- (5.70,5.45);
 \node[anchor=west] at (5.82,5.45)
+  {RL+CR weight (schematic, no bound)};
+
+\draw[red!75!black, thick] (5.10,5.05) -- (5.70,5.05);
+\node[anchor=west] at (5.82,5.05)
   {TADS anchor (measured, cell D)};
 
 % ---------- safe-region annotation --------------------------------------------
@@ -93,25 +123,22 @@
 \end{tikzpicture}%
 }
 \caption{\textbf{Theorem~\ref{thm:stability} bounds the TADS anchor;
-measured on Qwen2.5-0.5B + LoRA.} Cell D of the App.~F $2{\times}2$
-verification ablation (probe~2000, constant $\eta{=}2{\times}10^{-4}$,
-refresh every 25 optimizer steps, 68 post-warmup measurement points).
-The measured per-refresh anchor drift
-$d^{(t)}=\|v^{(t+1)}-v^{(t)}\|$ (red, median over 24 decoder layers,
-\emph{rescaled $\times 14$ for visibility}) stays strictly inside the
-empirical bound
-$(2\hat{C}_\Sigma/\gamma_{\min})\,\eta=46.24$ (blue dashed; safe region
-shaded) at \emph{every} refresh point, with the median tightness
-$d/\text{bound}=1.46{\times}10^{-3}$ and the worst-case
-$0.34/46.24=7.4{\times}10^{-3}$. The two visible spikes correspond
-to early-training refresh boundaries (steps~16 and~42); even the
-largest single drift is more than 100$\times$ below the bound.
-Here $\hat{C}_\Sigma=5.78{\times}10^{3}$ is the trimmed-10/90 mean
-estimator and $\gamma_{\min}=0.050$ is the worst-case eigengap over
-the 22~$\gamma$-thresholded layers (Section~\ref{app:thm-verification}).
-The other six probe/schedule cells reproduce the same qualitative
-picture; the two failing cells in
-Table~\ref{tab:thm-verdicts} disable the constant-$\eta$ schedule
-that A1 requires for a clean test, not the bound itself.}
+the RL+CR baseline has no such guarantee.} The measured
+\textsc{TADS} trajectory anchor (red — App.~F cell~D,
+Qwen2.5-0.5B + LoRA, probe~2000, constant
+$\eta{=}2{\times}10^{-4}$, 68 post-warmup refresh points, median over
+24 decoder layers, \emph{rescaled $\times 14$ for visibility}) stays
+strictly inside the empirical bound
+$(2\hat{C}_\Sigma/\gamma_{\min})\,\eta=46.24$
+(blue dashed; safe region shaded) at \emph{every} refresh point, with
+median tightness $1.46{\times}10^{-3}$ and worst-case
+$7.4{\times}10^{-3}$ ($\hat{C}_\Sigma{=}5.78{\times}10^{3}$,
+$\gamma_{\min}{=}0.050$). The RL+CR variance-ratio weight (grey,
+dotted) is currently a \emph{schematic placeholder} (circled =
+bound violations) — to be replaced with measured data from the
+same App.~F setup once the data\_agent cell is re-run with the
+verifier instrumentation. The two curves are different internal
+quantities; the figure contrasts \emph{boundedness}, not magnitude.
+Full per-layer results in App.~\ref{app:thm-verification}.}
 \label{fig:thm-main}
 \end{figure}

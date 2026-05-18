@@ -1,0 +1,86 @@
+%==========================================================
+% CIKM 2026 — Abstract draft (internal review)
+% Trajectory-Anchored Dynamic Data Selection for Instruction Tuning
+%==========================================================
+\documentclass[sigconf,nonacm]{acmart}
+
+\let\Bbbk\relax
+\usepackage{amssymb}
+\usepackage{amsthm}
+
+%-------- ACM conference metadata --------
+\acmConference[CIKM '26]{The 35th ACM International Conference on
+                        Information and Knowledge Management}
+                       {November 7--11, 2026}{Rome, Italy}
+\acmYear{2026}
+\copyrightyear{2026}
+
+\settopmatter{printacmref=false, printccs=false, printfolios=true}
+\pagestyle{plain}
+
+\renewcommand{\shortauthors}{Shin et al.}
+
+\begin{document}
+
+\title{Trajectory-Anchored Dynamic Data Selection
+       for Instruction Tuning}
+
+%==========================================================
+% Authors (one-line names, shared affiliation, 4 emails)
+%==========================================================
+\author{Jieun Shin, Minsoo Kim, Kyunglim Kim, and James Russell Geraci}
+\authornote{James Russell Geraci is the corresponding author.}
+\affiliation{%
+  \institution{Samsung Research}
+  \country{Republic of Korea}
+}
+\email{{jieuns.shin, minsoo3.kim, kl.kim, james.geraci}@samsung.com}
+
+%==========================================================
+% Abstract
+%==========================================================
+\begin{abstract}
+Proper data selection is essential for achieving high performance in
+instruction tuning (IT) as the subset selected from a candidate pool
+can substantially affect the capabilities acquired by the tuned
+model. Recent Reinforcement Learning (RL)-based selectors formulate
+data selection as a sequential decision problem and combine
+training-time signals---loss-based difficulty $\mathcal{L}_i$ and
+entropy-based uncertainty $\mathcal{H}_i$---into a composite reward
+$\mathcal{R}_i = w\,\mathcal{L}_i + (1-w)\,\mathcal{H}_i$
+with an adaptive variance-ratio weight~$w$.
+
+We build on this RL\,+\,Composite Reward (CR) framework with
+\textbf{Trajectory-Anchored Dynamic Selection (TADS)}. TADS extracts
+a per-layer capability direction $v_l^{(t)}$ directly from the
+model's own hidden-state trajectory, requiring no in-domain seed
+set, labels, auxiliary model, or validation set. The resulting
+trajectory anchor is incorporated multiplicatively into the
+selection score and is controlled by a single hyperparameter
+$\lambda$; setting $\lambda=0$ recovers the RL+CR baseline, yielding
+a clean ablation of the anchor term.
+
+We prove that, under a positive eigengap, the anchor sequence is
+stable:
+$\|v_l^{(t+1)} - v_l^{(t)}\| \le
+(2C_\Sigma/\gamma_{\min})\,\eta_t$.
+To our knowledge, this provides one of the first explicit stability
+guarantees for a dynamic IT data-selection criterion.
+
+Across model scales spanning $0.5$B to $14$B parameters, multiple
+instruction-tuning datasets, and a diverse suite of evaluation
+benchmarks, TADS consistently outperforms strong baselines while
+adding less than $0.5\%$ wall-clock overhead over the RL+CR
+baseline.
+\end{abstract}
+
+\keywords{Instruction tuning,
+          Data selection,
+          Reinforcement learning for data selection,
+          Hidden-state representation,
+          Large language model fine-tuning}
+
+\maketitle
+
+\end{document}
+

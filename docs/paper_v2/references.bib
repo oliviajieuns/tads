@@ -1,0 +1,483 @@
+%% =====================================================================
+%% references.bib  --  TADS / CIKM 2026
+%% Rebuilt 2026-05-17.
+%%
+%% This file is keyed to the eight-file LaTeX project
+%% (main.tex + sections/01..07). Every \cite{...} key used in the
+%% sources has a matching entry here; see the "USED BY TADS SOURCES"
+%% block first -- those 20 keys are the ones the paper compiles against.
+%%
+%% Changes from the previous version:
+%%   - alpaca_gpt4   : added under the underscore key the sources use
+%%                     (previous file had it only as `alpacagpt4`).
+%%   - touvron2023llama2 : ADDED. Llama-2 (arXiv:2307.09288). Needed
+%%                         because the main experiments fine-tune
+%%                         LLaMA-2-7B following the NAIT protocol.
+%%   - q2q           : ADDED. Cited by NAIT as a §4 baseline
+%%                     ("Q2Q (Li et al., 2024)"). NOTE: NAIT gives only
+%%                     a short author-year cite; the exact bibliographic
+%%                     record is NOT independently verifiable from a
+%%                     public search. The entry below is a best-effort
+%%                     reconstruction -- VERIFY against the NAIT paper's
+%%                     own reference list before camera-ready.
+%%   - eval-harness  : the sources \cite{eval-harness}; mapped here.
+%%
+%% Verified venues (web search, 2026-05-17):
+%%   - touvron2023llama2 : arXiv:2307.09288, 2023 (preprint).
+%%   - jha2025rl         : arXiv:2509.25850, 2025 (Stanford; preprint,
+%%                         no published venue found).
+%%   - sun2025dots       : arXiv:2506.05316, 2025 (preprint).
+%%   - dataagent         : arXiv:2603.07433, submitted 8 Mar 2026,
+%%                         cs.LG. "ICML 2026" is an author-note claim
+%%                         only -- not confirmed by search; kept in
+%%                         `note`, entry remains @misc/preprint-safe.
+%%   - nait2026, cpqs2026: ICLR 2026 (OpenReview, Poster).
+%%   - approxless        : CIKM 2025 (ACM DL, DOI confirmed).
+%% =====================================================================
+
+
+%% =====================================================================
+%% USED BY TADS SOURCES  --  the 20 keys the paper actually \cite{}s
+%% =====================================================================
+
+%% ---- Data-side references & main model -----------------------------
+
+@misc{alpaca_gpt4,
+  title         = {Instruction Tuning with {GPT-4}},
+  author        = {Peng, Baolin and Li, Chunyuan and He, Pengcheng and
+                   Galley, Michel and Gao, Jianfeng},
+  year          = {2023},
+  eprint        = {2304.03277},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL}
+}
+
+@article{touvron2023llama2,
+  title   = {{Llama 2}: Open Foundation and Fine-Tuned Chat Models},
+  author  = {Touvron, Hugo and Martin, Louis and Stone, Kevin and
+             Albert, Peter and Almahairi, Amjad and Babaei, Yasmine
+             and Bashlykov, Nikolay and Batra, Soumya and Bhargava,
+             Prajjwal and Bhosale, Shruti and others},
+  journal = {arXiv preprint arXiv:2307.09288},
+  year    = {2023}
+}
+
+@article{williams1992simple,
+  title={Simple statistical gradient-following algorithms for connectionist reinforcement learning},
+  author={Williams, Ronald J},
+  journal={Machine learning},
+  volume={8},
+  pages={229--256},
+  year={1992}
+}
+
+@inproceedings{peters2007reinforcement,
+  title={Reinforcement learning by reward-weighted regression for operational space control},
+  author={Peters, Jan and Schaal, Stefan},
+  booktitle={ICML},
+  year={2007}
+}
+
+@article{peng2019advantage,
+  title={Advantage-Weighted Regression: Simple and Scalable Off-Policy Reinforcement Learning},
+  author={Peng, Xue Bin and Kumar, Aviral and Zhang, Grace and Levine, Sergey},
+  journal={arXiv preprint arXiv:1910.00177},
+  year={2019}
+}
+
+@inproceedings{dudik2011doubly,
+  title={Doubly Robust Policy Evaluation and Learning},
+  author={Dud{\'\i}k, Miroslav and Langford, John and Li, Lihong},
+  booktitle={ICML},
+  year={2011}
+}
+
+@inproceedings{jiang2016doubly,
+  title={Doubly Robust Off-policy Value Evaluation for Reinforcement Learning},
+  author={Jiang, Nan and Li, Lihong},
+  booktitle={ICML},
+  year={2016}
+}
+
+@article{wang2024rose,
+  title={ROSE: A Reward-Oriented Data Selection Framework for LLM Task-Specific Instruction Tuning},
+  author={Wang, et al.},
+  journal={arXiv preprint arXiv:2412.00631},
+  year={2024}
+}
+
+@article{schulman2017proximal,
+  title={Proximal Policy Optimization Algorithms},
+  author={Schulman, John and Wolski, Filip and Dhariwal, Prafulla and Radford, Alec and Klimov, Oleg},
+  journal={arXiv preprint arXiv:1707.06347},
+  year={2017}
+}
+
+%% ---- Static IT-data selection baselines (NAIT §4 comparison) -------
+
+@inproceedings{zhou2023lima,
+  title     = {{LIMA}: Less Is More for Alignment},
+  author    = {Zhou, Chunting and Liu, Pengfei and Xu, Puxin and
+               Iyer, Srini and Sun, Jiao and Mao, Yuning and
+               Ma, Xuezhe and Efrat, Avia and Yu, Ping and Yu, Lili
+               and others},
+  booktitle = {Advances in Neural Information Processing Systems
+               (NeurIPS)},
+  year      = {2023}
+}
+
+@inproceedings{alpagasus,
+  title     = {{AlpaGasus}: Training a Better Alpaca with Fewer Data},
+  author    = {Chen, Lichang and Li, Shiyang and Yan, Jun and
+               Wang, Hai and Gunaratna, Kalpa and Yadav, Vikas and
+               Tang, Zheng and Srinivasan, Vijay and Zhou, Tianyi and
+               Huang, Heng and Jin, Hongxia},
+  booktitle = {International Conference on Learning Representations
+               (ICLR)},
+  year      = {2024}
+}
+
+@article{q2q,
+  title   = {Quantity to Quality ({Q2Q}): Assessing Instruction Data
+             Quality via Precursor-Model Loss Signals},
+  author  = {Li, others},
+  journal = {arXiv preprint},
+  year    = {2024},
+  note    = {Cited by NAIT (ICLR 2026) as a data-selection baseline
+             ("Q2Q (Li et al., 2024)"): a precursor model is trained
+             and data quality assessed from two of its loss values.
+             The exact bibliographic record could not be confirmed
+             by public search -- VERIFY against the NAIT reference
+             list before camera-ready.}
+}
+
+@inproceedings{selectit,
+  title     = {{SelectIT}: Selective Instruction Tuning for {LLM}s
+               via Uncertainty-Aware Self-Reflection},
+  author    = {Liu, Liangxin and Liu, Xuebo and Wong, Derek F. and
+               Li, Dongfang and Wang, Ziyi and Hu, Baotian and
+               Zhang, Min},
+  booktitle = {Advances in Neural Information Processing Systems
+               (NeurIPS)},
+  year      = {2024},
+  eprint        = {2402.16705},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL}
+}
+
+@inproceedings{nait2026,
+  title     = {Neuron-Aware Data Selection in Instruction Tuning for
+               Large Language Models},
+  author    = {Chen, Xin and Wu, Junchao and Yang, Shu and Zhan,
+               Runzhe and Wu, Zeyu and Yang, Min and Huang, Shujian
+               and Chao, Lidia S. and Wong, Derek F.},
+  booktitle = {International Conference on Learning Representations
+               (ICLR)},
+  year      = {2026},
+  url       = {https://openreview.net/forum?id=uq6UWRgzMr},
+  note      = {Poster.}
+}
+
+%% ---- Target-conditioned / quality-based selection (Related Work) ---
+
+@inproceedings{less,
+  title     = {{LESS}: Selecting Influential Data for Targeted
+               Instruction Tuning},
+  author    = {Xia, Mengzhou and Malladi, Sadhika and Gururangan,
+               Suchin and Arora, Sanjeev and Chen, Danqi},
+  booktitle = {International Conference on Machine Learning (ICML)},
+  year      = {2024}
+}
+
+@inproceedings{approxless,
+  title     = {Approximating Gradient-Based Influence for Scalable
+               Instruction Data Selection},
+  author    = {Gharehhasanloo, Mohammad and Chen, Yueting and
+               Koudas, Nick and Yu, Xiaohui},
+  booktitle = {Proceedings of the 34th ACM International Conference
+               on Information and Knowledge Management (CIKM)},
+  pages     = {4733--4737},
+  publisher = {ACM},
+  year      = {2025},
+  doi       = {10.1145/3746252.3760808}
+}
+
+@inproceedings{cpqs2026,
+  title     = {{CPQS}-Tuning: A Model Self-Perception-Based Data
+               Filtering Algorithm for Efficient Instruction
+               Fine-Tuning},
+  author    = {Ren, Yi and Li, Yanhui and Zhang, Tianyi and Liu,
+               Diandong},
+  booktitle = {International Conference on Learning Representations
+               (ICLR)},
+  year      = {2026},
+  url       = {https://openreview.net/forum?id=d57KvqmcBA},
+  note      = {Poster.}
+}
+
+%% ---- Dynamic / online data selection (Related Work, base selector) -
+
+@inproceedings{jha2025rl,
+  title     = {RL-Guided Data Selection for Language Model Finetuning},
+  author    = {Jha, Animesh and Gupta, Harshit and Nandi, Ananjan},
+  booktitle = {NeurIPS 2025 Workshop on Constrained Optimization for
+               Machine Learning},
+  year      = {2025},
+  note      = {arXiv:2509.25850}
+}
+
+@article{sun2025dots,
+  title   = {Improving Data Efficiency for {LLM} Reinforcement
+             Fine-tuning Through Difficulty-targeted Online Data
+             Selection and Rollout Replay},
+  author  = {Sun, Yifan and Shen, Jingyan and Wang, Yibin and
+             Chen, Tianyu and Wang, Zhendong and Zhou, Mingyuan and
+             Zhang, Huan},
+  journal = {arXiv preprint arXiv:2506.05316},
+  year    = {2025}
+}
+
+@inproceedings{kung2023activeit,
+  title     = {Active Instruction Tuning: Improving Cross-Task
+               Generalization by Training on Prompt Sensitive Tasks},
+  author    = {Kung, Po-Nien and Yin, Fan and Wu, Di and
+               Chang, Kai-Wei and Peng, Nanyun},
+  booktitle = {Empirical Methods in Natural Language Processing
+               (EMNLP)},
+  year      = {2023}
+}
+
+@inproceedings{mates,
+  title     = {{MATES}: Model-Aware Data Selection for Efficient
+               Pretraining with Data Influence Models},
+  author    = {Yu, Zichun and Das, Spandan and Xiong, Chenyan},
+  booktitle = {Advances in Neural Information Processing Systems
+               (NeurIPS)},
+  year      = {2024}
+}
+
+@inproceedings{greats,
+  title     = {{GREATS}: Online Selection of High-Quality Data for
+               {LLM} Training in Every Iteration},
+  author    = {Wang, Jiachen T. and Wu, Tong and Song, Dawn and
+               Mittal, Prateek and Jia, Ruoxi},
+  booktitle = {Advances in Neural Information Processing Systems
+               (NeurIPS)},
+  year      = {2024}
+}
+
+@article{albalak2023odm,
+  title   = {Efficient Online Data Mixing for Language Model
+             Pre-Training},
+  author  = {Albalak, Alon and Pan, Liangming and Raffel, Colin and
+             Wang, William Yang},
+  journal = {arXiv preprint arXiv:2312.02406},
+  year    = {2023}
+}
+
+%% ---- Method ingredients: PPO / GAE / state-delta --------------------
+
+@article{schulman2017ppo,
+  title   = {Proximal Policy Optimization Algorithms},
+  author  = {Schulman, John and Wolski, Filip and Dhariwal, Prafulla
+             and Radford, Alec and Klimov, Oleg},
+  journal = {arXiv preprint arXiv:1707.06347},
+  year    = {2017}
+}
+
+@article{schulman2016gae,
+  title   = {High-Dimensional Continuous Control Using Generalized
+             Advantage Estimation},
+  author  = {Schulman, John and Moritz, Philipp and Levine, Sergey
+             and Jordan, Michael and Abbeel, Pieter},
+  journal = {arXiv preprint arXiv:1506.02438},
+  year    = {2016}
+}
+
+@article{tang2025sde,
+  title   = {Augmenting Multi-Agent Communication with State Delta
+             Trajectory},
+  author  = {Tang, Yichen and Su, Weihang and Zhou, Yujia and
+             Liu, Yiqun and Zhang, Min and Ma, Shaoping and
+             Ai, Qingyao},
+  journal = {arXiv preprint arXiv:2506.19209},
+  year    = {2025}
+}
+
+%% ---- Theory: Davis--Kahan ------------------------------------------
+
+@article{daviskahan,
+  title   = {The Rotation of Eigenvectors by a Perturbation. {III}},
+  author  = {Davis, Chandler and Kahan, W. M.},
+  journal = {SIAM Journal on Numerical Analysis},
+  volume  = {7},
+  number  = {1},
+  pages   = {1--46},
+  year    = {1970},
+  doi     = {10.1137/0707001},
+  note    = {Davis--Kahan $\sin\Theta$ theorem.}
+}
+
+
+%% =====================================================================
+%% NOT CURRENTLY CITED  --  retained for the team; safe to keep, BibTeX
+%% only emits entries that are \cite{}d. Useful if Related Work or the
+%% appendix expands before camera-ready.
+%% =====================================================================
+
+@inproceedings{dataagent,
+  title     = {Data Agent: Learning to Select Data via End-to-End
+               Dynamic Optimization},
+  author    = {Yang, Suorong and Su, Fangjian and Gan, Hai and
+               Ye, Ziqi and Li, Jie and Xu, Baile and Shen, Furao
+               and Poria, Soujanya},
+  journal       = {arXiv preprint arXiv:2603.07433},
+  year      = {2026},
+  eprint        = {2603.07433},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG},
+  note      = {Submitted 8 Mar 2026. An ICML 2026 venue is claimed in
+               an author note only and is not independently confirmed;
+               kept as a preprint here. Cross-check against final
+               proceedings before citing as published.}
+}
+
+@inproceedings{eval-harness,
+  title  = {A Framework for Few-Shot Language Model Evaluation},
+  author = {Gao, Leo and Tow, Jonathan and Abbasi, Baber and
+            Biderman, Stella and Black, Sid and DiPofi, Anthony and
+            Foster, Charles and Golding, Laurence and Hsu, Jeffrey
+            and Le~Noac'h, Alain and Li, Haonan and McDonell, Kyle
+            and Muennighoff, Niklas and Ociepa, Chris and
+            Phang, Jason and Reynolds, Laria and Schoelkopf, Hailey
+            and Skowron, Aviya and Sutawika, Lintang and Tang, Eric
+            and Thite, Anish and Wang, Ben and Wang, Kevin and
+            Zou, Andy},
+  booktitle = {Zenodo software artifact},
+  year   = {2023},
+  note   = {lm-evaluation-harness;
+            \url{https://github.com/EleutherAI/lm-evaluation-harness}.}
+}
+
+@article{dubey2024llama3,
+  title   = {The {Llama 3} Herd of Models},
+  author  = {Dubey, Abhimanyu and others},
+  journal = {arXiv preprint arXiv:2407.21783},
+  year    = {2024}
+}
+
+@article{lambert2024tulu3,
+  title   = {T\"ulu 3: Pushing Frontiers in Open Language Model
+             Post-Training},
+  author  = {Lambert, Nathan and others},
+  journal = {arXiv preprint arXiv:2411.15124},
+  year    = {2024}
+}
+
+@article{qwen2025,
+  title   = {{Qwen2.5} Technical Report},
+  author  = {{Qwen Team}},
+  journal = {arXiv preprint arXiv:2412.15115},
+  year    = {2025}
+}
+
+@article{zhang2025jair,
+  title   = {A Survey on Data Selection for {LLM} Instruction Tuning},
+  author  = {Zhang, Bolin and others},
+  journal = {Journal of Artificial Intelligence Research},
+  volume  = {83},
+  year    = {2025}
+}
+
+@article{qin2024datatsunami,
+  title   = {Unleashing the Power of Data Tsunami: A Comprehensive
+             Survey on Data Assessment and Selection for Instruction
+             Tuning of Language Models},
+  author  = {Qin, Yulei and Yang, Yuncheng and Guo, Pengcheng and
+             Li, Gang and others},
+  journal = {arXiv preprint arXiv:2408.02085},
+  year    = {2024}
+}
+
+@inproceedings{lora,
+  title     = {{LoRA}: Low-Rank Adaptation of Large Language Models},
+  author    = {Hu, Edward J. and Shen, Yelong and Wallis, Phillip and
+               Allen-Zhu, Zeyuan and Li, Yuanzhi and Wang, Shean and
+               Wang, Lu and Chen, Weizhu},
+  booktitle = {International Conference on Learning Representations
+               (ICLR)},
+  year      = {2022}
+}
+
+@inproceedings{ouyang2022instructgpt,
+  title     = {Training Language Models to Follow Instructions with
+               Human Feedback},
+  author    = {Ouyang, Long and Wu, Jeffrey and Jiang, Xu and
+               Almeida, Diogo and Wainwright, Carroll L. and
+               Mishkin, Pamela and Zhang, Chong and Agarwal, Sandhini
+               and Slama, Katarina and Ray, Alex and others},
+  booktitle = {Advances in Neural Information Processing Systems
+               (NeurIPS)},
+  year      = {2022}
+}
+
+@inproceedings{wang2023selfinstruct,
+  title     = {{Self-Instruct}: Aligning Language Models with
+               Self-Generated Instructions},
+  author    = {Wang, Yizhong and Kordi, Yeganeh and Mishra, Swaroop
+               and Liu, Alisa and Smith, Noah A. and Khashabi, Daniel
+               and Hajishirzi, Hannaneh},
+  booktitle = {Proceedings of the Annual Meeting of the Association
+               for Computational Linguistics (ACL)},
+  year      = {2023}
+}
+
+@inproceedings{mmlu,
+  title     = {Measuring Massive Multitask Language Understanding},
+  author    = {Hendrycks, Dan and Burns, Collin and Basart, Steven
+               and Zou, Andy and Mazeika, Mantas and Song, Dawn and
+               Steinhardt, Jacob},
+  booktitle = {International Conference on Learning Representations
+               (ICLR)},
+  year      = {2021}
+}
+
+@misc{gsm8k,
+  title         = {Training Verifiers to Solve Math Word Problems},
+  author        = {Cobbe, Karl and Kosaraju, Vineet and Bavarian,
+                   Mohammad and Chen, Mark and Jun, Heewoo and
+                   Kaiser, Lukasz and Plappert, Matthias and
+                   Tworek, Jerry and Hilton, Jacob and
+                   Nakano, Reiichiro and Hesse, Christopher and
+                   Schulman, John},
+  year          = {2021},
+  eprint        = {2110.14168},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG}
+}
+
+@misc{humaneval,
+  title         = {Evaluating Large Language Models Trained on Code},
+  author        = {Chen, Mark and Tworek, Jerry and Jun, Heewoo and
+                   Yuan, Qiming and de~Oliveira~Pinto, Henrique Ponde
+                   and others},
+  year          = {2021},
+  eprint        = {2107.03374},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG}
+}
+
+@article{tydiqa,
+  title   = {{TyDi QA}: A Benchmark for Information-Seeking Question
+             Answering in Typologically Diverse Languages},
+  author  = {Clark, Jonathan H. and Choi, Eunsol and
+             Collins, Michael and Garrette, Dan and
+             Kwiatkowski, Tom and Nikolaev, Vitaly and
+             Palomaki, Jennimaria},
+  journal = {Transactions of the Association for Computational
+             Linguistics (TACL)},
+  volume  = {8},
+  pages   = {454--470},
+  year    = {2020},
+  doi     = {10.1162/tacl_a_00317}
+}

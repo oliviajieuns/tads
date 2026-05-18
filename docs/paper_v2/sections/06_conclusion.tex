@@ -1,0 +1,31 @@
+% =====================================================================
+%  Section 6: Conclusion
+% =====================================================================
+\section{Conclusion}
+\label{sec:conclusion}
+
+We presented \textsc{TADS} (Trajectory-Anchored Dynamic Selection),
+a dynamic instruction-tuning data-selection framework that augments
+an RL composite-reward base selector with a structural capability
+anchor extracted from the model's own hidden-state trajectory. The
+anchor is model-intrinsic---requiring no in-domain seed, labels,
+validation set, or auxiliary scorer---and enters the selection score
+as a single multiplicative term controlled by one hyperparameter,
+with $\lambda{=}0$ recovering the base selector exactly. We proved a
+stability guarantee (Theorem~\ref{thm:stability}): under a positive
+eigenvalue gap, the trajectory anchor changes by at most a
+learning-rate-scaled amount per epoch, and this bound transfers to
+the selection criterion. To our knowledge, this is the first
+stability guarantee for a dynamic IT data-selection method, and it
+is base-agnostic rather than tied to a specific reward.
+
+On the Qwen2.5-14B + Alpaca-GPT4 setting at $50\%$ selection,
+\textsc{TADS} attains the best knowledge accuracy among the
+evaluated baselines without per-task seed construction, while adding
+under $0.5\%$ wall-clock overhead. A broader empirical study---across
+model scales from 0.5B to 14B, multiple instruction-tuning datasets,
+and an eight-task benchmark suite, together with diagnostic
+experiments on baseline weaknesses---is in progress and described in
+App.~\ref{app:inprogress}; it is designed to test whether the gains
+reported here hold consistently across models, datasets, and
+evaluation regimes under a single \textsc{TADS} configuration.

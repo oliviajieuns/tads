@@ -67,14 +67,45 @@ verification cells pass all five verdicts; the $2$ failing cells
 disable the constant-$\eta$ schedule needed to test A1 cleanly,
 not the bound itself.
 
-The RL+CR base selector, by contrast, has \emph{no} comparable
-guarantee: its variance-ratio weight $w$ (Eq.~\ref{eq:w}) conflates
-within- and between-task variance and is not a stabilised geometric
-object (Sec.~\ref{sec:method-motivation}). The two are different
-internal quantities and the figure plots each against the bound
-only to contrast \emph{boundedness}, not magnitude.
-\textcolor{red}{The RL+CR curve in Fig.~\ref{fig:thm-main} is
-currently a schematic placeholder; the measured replacement is
-being collected by re-running the \texttt{data\_agent} cell with
-the verifier instrumentation under the same App.~F setup
-(\textasciitilde 1.5 GPU-hours on Qwen2.5-0.5B).}
+\paragraph{The matched no-anchor control is uncontrolled.}
+To make the contrast concrete we run a matched no-anchor consensus
+control: same instrumentation, same probe, same hyperparameters as
+cell~D except \texttt{use\_anchor=false} and \texttt{tads.lam=0}.
+The selection rule reduces to the RL+CR base selector
+(Sec.~\ref{sec:method}); the trajectory anchor is not used for
+selection, but the same anchor-displacement diagnostic is recorded
+post hoc. Table~\ref{tab:dstep-spread} summarises the contrast:
+the control's median per-step displacement is $2.9\times$
+\textsc{TADS}'s ($0.199$ vs $0.068$), its worst single layer-step
+reaches $1.998$ ($5.8\times$ \textsc{TADS}'s peak), and its sign-flip
+rate exceeds the $5\%$ A3 ceiling -- so the empirical preconditions
+of Theorem~\ref{thm:stability} fail under the control and the
+guarantee that holds for \textsc{TADS} simply does not apply. In
+Fig.~\ref{fig:thm-main} the two curves share the same vertical
+scale and their floors overlap repeatedly; the contrast is in
+\emph{volatility and boundedness}, not a constant offset.
+
+\begin{table}[t]
+\centering
+\caption{\textbf{Anchor-displacement diagnostic: \textsc{TADS} vs.\
+matched no-anchor consensus control.} Same diagnostic, same data,
+same hyperparameters except \texttt{use\_anchor} and $\lambda$.
+The control does not use the anchor for selection, but its
+hidden-state trajectory is measured post hoc with the same
+instrumentation. All values are post-warmup; the sign-flip rate is
+per layer-pair across $24$ decoder layers and $68$ refresh steps
+(max possible: $24 \times 68 / 2 = 1{,}496$ pair-steps).}
+\label{tab:dstep-spread}
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+ & \multicolumn{2}{c}{$d^{(t)}$, median over layers} & worst single & sign-flip & \\
+\cmidrule(lr){2-3}
+Cell & median & peak & layer-step & rate & E3b \\
+\midrule
+\textsc{TADS} (D)        & $0.068$ & $0.342$ & $0.342$ & $0\,/\,1{,}496$ & PASS \\
+No-anchor control        & $0.199$ & $0.456$ & $1.998$ & ${>}\,5\%$      & FAIL \\
+\bottomrule
+\end{tabular}
+\end{table}

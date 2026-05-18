@@ -1,27 +1,23 @@
-% fig:thm-main — TADS anchor measured + RL+CR weight schematic placeholder.
+% fig:thm-main : TADS anchor measured + RL+CR weight schematic placeholder.
 %
-% Status: anchor curve and bound are measured (App. F cell D, Qwen2.5-0.5B
-% + LoRA, probe 2000, constant lr, 68 post-warmup refresh points). The
-% RL+CR variance-ratio weight is currently a schematic placeholder — it
-% will be replaced once we measure it in the same App. F setup with
-% tads.lam=0 + use_anchor=false (data_agent method) and the verifier ON.
-% The placeholder's coordinates are kept from the round-1 schematic so
-% the visual contrast (anchor stays inside the bound, RL+CR weight breaks
-% it repeatedly) stays intact while the figure waits for measurement.
+% IMPORTANT: this file is intentionally pure ASCII (no em-dash, no smart
+% quotes). Earlier revisions used unicode em-dashes (U+2014) and got
+% mojibaked when copy-pasted across editors / OSes; render time the
+% caption then contained replacement glyphs that broke pdflatex on some
+% setups. Keep edits ASCII-only to avoid the regression.
 %
-% Visual scaling: the bound (2 \hat{C}_Σ / γ_min) · η is constant at
-% 46.24 (constant-lr schedule), orders of magnitude above the measured
-% anchor drift. We rescale the anchor by ×14 so its peak fills ~80% of
-% the plot; both the y-axis label and the caption call out the rescaling.
-% The RL+CR placeholder is drawn on the same (rescaled) axis purely for
-% visual contrast — magnitude is not meaningful, only boundedness is.
+% Status: anchor curve and bound are measured (App. F cell D, Qwen2.5-
+% 0.5B + LoRA, probe 2000, constant lr, 68 post-warmup refresh points).
+% The RL+CR variance-ratio weight is a schematic placeholder, to be
+% replaced once we measure it with the data_agent cell (tads.lam=0,
+% use_anchor=false, verifier ON) in the same App. F setup.
 %
-% Numbers inlined from /group-volume/jieuns/tads-checkpoints/light/
-% thm_verify_paper_artifacts/summary.json:
+% Numbers inlined from <output_root>/light/thm_verify_paper_artifacts/
+% summary.json:
 %   n_refresh_points         68
 %   C_sigma_trimmed_mean     5.78e3
 %   gamma_min (effective)    0.050
-%   factor 2·C/γ             2.31e5
+%   factor 2*C/gamma         2.31e5
 %   median d_step            6.77e-2
 %   max d_step               3.42e-1
 %   bound (constant)         46.24
@@ -35,20 +31,16 @@
   >=Latex
 ]
 
-% ---------- fixed drawing box: prevents TikZ labels from pushing the figure ----
-\path[use as bounding box] (-0.10,-0.65) rectangle (9.55,6.35);
+% [FIX 1] Fixed drawing box to stabilize centering and prevent label spill
+\path[use as bounding box] (-0.15,-0.70) rectangle (9.45,6.20);
 
-% ---------- shaded safe region: from y=0 up to the bound at y=5.50 -------------
+% [FIX 2] Safe region: from y=0 up to the constant bound
 \fill[blue!8] (0,0) rectangle (9,5.50);
 
-% ---------- theoretical bound (flat — constant lr) -----------------------------
+% [FIX 3] Theoretical bound (constant-lr case)
 \draw[blue!70!black, very thick, dashed] (0,5.50) -- (9,5.50);
 
-% ---------- RL+CR variance-ratio weight (SCHEMATIC PLACEHOLDER) ---------------
-% TODO: replace with measured data once we run the data_agent_10 cell
-% (tads.lam=0, use_anchor=false) with the App. F verifier instrumentation.
-% Coordinates kept from the round-1 schematic so the boundedness contrast
-% is visible; magnitudes are not meaningful.
+% [FIX 4] RL+CR weight (schematic placeholder)
 \draw[gray!55!black, thick, densely dotted]
   plot[smooth] coordinates {
     (0,3.60) (1,5.60) (2,2.10) (3,5.90)
@@ -63,22 +55,17 @@
   \fill[gray!55!black] \p circle (2.1pt);
 }
 
-\foreach \p in {
-  (1,5.60), (3,5.90), (5,4.70), (7,5.20)
-} {
+\foreach \p in {(1,5.60), (3,5.90), (5,4.70), (7,5.20)} {
   \draw[gray!55!black] \p circle (4.7pt);
 }
 
-% ---------- measured TADS anchor drift d^(t), median over 24 decoder layers ----
-% Rescaled by ×14.6 so the peak (~0.342) lands at y≈5.0. The two visible
-% spikes (refresh steps 16 and 42 in absolute terms) are kept; the rest is
-% sub-sampled from 68 → 23 points for readability.
+% [FIX 5] Measured TADS anchor drift (rescaled x14 for visibility)
 \draw[red!75!black, thick]
   plot[smooth] coordinates {
     (0.00,1.86) (0.40,1.65) (0.81,1.62) (1.21,1.10) (1.62,1.14)
-    (2.02,0.85) (2.43,1.05) (2.83,1.45) (3.24,4.27)   % ← spike (raw step 16)
+    (2.02,0.85) (2.43,1.05) (2.83,1.45) (3.24,4.27)
     (3.64,0.97) (4.05,0.85) (4.45,0.78) (4.86,0.91)
-    (5.26,0.81) (5.67,1.13) (6.07,5.00)              % ← spike (raw step 42)
+    (5.26,0.81) (5.67,1.13) (6.07,5.00)
     (6.48,0.83) (6.88,0.96) (7.29,0.82) (7.69,0.85)
     (8.10,1.20) (8.50,0.78) (9.00,1.15)
   };
@@ -93,30 +80,33 @@
   \fill[red!75!black] \p circle (1.4pt);
 }
 
-% ---------- axes (drawn last so they stay above the shaded region) ------------
+% [FIX 6] Axes drawn last so they stay visible above shading
 \draw[->, thick] (0,0) -- (9.25,0);
-\draw[->, thick] (0,0) -- (0,6.05);
+\draw[->, thick] (0,0) -- (0,6.00);
 
-\node at (4.65,-0.45) {refresh step $t$ (post-warmup, 68 points)};
+% [FIX 7] X-axis label centered and kept compact
+\node at (4.60,-0.42) {refresh step $t$ (68 post-warmup points)};
 
-\node[anchor=west, align=left] at (0.08,6.18)
-  {$d^{(t)}=\|v^{(t+1)}-v^{(t)}\|$, median over 24 layers
-   ({\itshape rescaled $\times 14$})};
+% [FIX 8] Y-description broken into two lines to prevent overflow
+\node[anchor=west, align=left] at (0.08,6.08)
+  {$d^{(t)}=\|v^{(t+1)}-v^{(t)}\|$, median over 24 layers\\
+   ({\itshape rescaled $\times 14$ for visibility})};
 
-% ---------- compact in-plot legend --------------------------------------------
-\draw[blue!70!black, very thick, dashed] (5.10,5.85) -- (5.70,5.85);
-\node[anchor=west] at (5.82,5.85)
-  {Thm bound $\frac{2\hat{C}_\Sigma}{\gamma_{\min}}\eta$};
+% [FIX 9] Compact legend with shorter labels
+\draw[blue!70!black, very thick, dashed] (5.00,5.82) -- (5.60,5.82);
+\node[anchor=west] at (5.72,5.82) {Thm. bound};
 
-\draw[gray!55!black, thick, densely dotted] (5.10,5.45) -- (5.70,5.45);
-\node[anchor=west] at (5.82,5.45)
-  {RL+CR weight (schematic, no bound)};
+\draw[gray!55!black, thick, densely dotted] (5.00,5.45) -- (5.60,5.45);
+\node[anchor=west] at (5.72,5.45) {RL+CR (schematic)};
 
-\draw[red!75!black, thick] (5.10,5.05) -- (5.70,5.05);
-\node[anchor=west] at (5.82,5.05)
-  {TADS anchor (measured, cell D)};
+\draw[red!75!black, thick] (5.00,5.08) -- (5.60,5.08);
+\node[anchor=west] at (5.72,5.08) {TADS anchor (measured)};
 
-% ---------- safe-region annotation --------------------------------------------
+% [FIX 10] Explicit formula for the bound, placed on its own line
+\node[blue!70!black, anchor=west] at (5.72,5.63)
+  {$\frac{2\hat{C}_\Sigma}{\gamma_{\min}}\eta = 46.24$};
+
+% [FIX 11] Safe-region annotation
 \node[font=\scriptsize\itshape, align=center] at (1.40,3.10)
   {safe region};
 
@@ -124,21 +114,21 @@
 }
 \caption{\textbf{Theorem~\ref{thm:stability} bounds the TADS anchor;
 the RL+CR baseline has no such guarantee.} The measured
-\textsc{TADS} trajectory anchor (red — App.~F cell~D,
-Qwen2.5-0.5B + LoRA, probe~2000, constant
-$\eta{=}2{\times}10^{-4}$, 68 post-warmup refresh points, median over
+\textsc{TADS} trajectory anchor (red; App.~F cell~D,
+Qwen2.5-0.5B + LoRA, probe size 2000, constant
+$\eta=2\times 10^{-4}$, 68 post-warmup refresh points, median over
 24 decoder layers, \emph{rescaled $\times 14$ for visibility}) stays
 strictly inside the empirical bound
-$(2\hat{C}_\Sigma/\gamma_{\min})\,\eta=46.24$
-(blue dashed; safe region shaded) at \emph{every} refresh point, with
-median tightness $1.46{\times}10^{-3}$ and worst-case
-$7.4{\times}10^{-3}$ ($\hat{C}_\Sigma{=}5.78{\times}10^{3}$,
-$\gamma_{\min}{=}0.050$). The RL+CR variance-ratio weight (grey,
-dotted) is currently a \emph{schematic placeholder} (circled =
-bound violations) — to be replaced with measured data from the
-same App.~F setup once the data\_agent cell is re-run with the
-verifier instrumentation. The two curves are different internal
+$(2\hat{C}_\Sigma/\gamma_{\min})\eta = 46.24$
+(blue dashed; shaded safe region) at every refresh point, with
+median tightness $1.46\times 10^{-3}$ and worst-case
+$7.4\times 10^{-3}$ ($\hat{C}_\Sigma=5.78\times 10^{3}$,
+$\gamma_{\min}=0.050$). The RL+CR variance-ratio weight (grey,
+dotted) is currently a \emph{schematic placeholder}; circled points
+indicate bound violations. It will be replaced with measured data
+from the same App.~F setup once the data\_agent cell is re-run with
+the verifier instrumentation. The two curves are different internal
 quantities; the figure contrasts \emph{boundedness}, not magnitude.
-Full per-layer results in App.~\ref{app:thm-verification}.}
+Full per-layer results are in App.~\ref{app:thm-verification}.}
 \label{fig:thm-main}
 \end{figure}

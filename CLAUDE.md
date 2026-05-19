@@ -63,6 +63,19 @@ base selector에 모델 자신의 hidden-state trajectory에서 뽑은 구조적
 노드별 메모:
 - run1108146-tads-theory: A100-SXM4-80GB × 8 (sanity/0.5B 작업 노드)
 
+### 2026-05-19 노드 (오늘 세션 임시 매핑, 1 GPU per node)
+
+| 노드 | GPU | MIG | 가용 | 용도 |
+|---|---|---|---|---|
+| run1108843-tads2-jieun-pai | A100-80GB | OFF | 80GB full | **7B Qwen2.5 메인 #1 (LoRA)** |
+| run1108842-tads-jieun-pai  | A100-80GB | OFF | 80GB full | **7B Qwen2.5 메인 #2 (LoRA)** |
+| run1107736-tads-a100-g20   | A100-80GB | ON  | 40GB (3g.40gb) | GSM8K eval 진행중 → 끝나면 0.5B |
+| run1107739-tads1           | A100-80GB | ON  | 40GB | 0.5B sweep |
+| run1108824-tads2-jieun     | A100-80GB | ON  | 40GB | 0.5B sweep |
+
+⚠️ 노드 간 ssh 안 됨 (hostname resolution 실패). 각 노드에서 직접 launch.
+⚠️ 1 GPU per node → 7B full FT 어려움 → LoRA 로 가는 게 현실적.
+
 ---
 
 ## 코드 제공 규칙 (항상 준수)

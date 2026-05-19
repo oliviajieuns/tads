@@ -1,0 +1,460 @@
+% =====================================================================
+%  Appendix
+% =====================================================================
+\appendix
+
+% =====================================================================
+\section{Proof of Theorem~\ref{thm:stability}}
+\label{app:proof-stability}
+
+This appendix proves the per-epoch and cumulative bounds of
+Theorem~\ref{thm:stability}, together with the score-transfer
+corollary used in Sec.~\ref{sec:method-core}. The proof has three
+steps: a Davis--Kahan angular bound, a conversion to Euclidean
+distance via sign calibration, and a transfer from anchor stability
+to the \textsc{TADS} score.
+
+\paragraph{Assumption interpretations.}
+Assumption~1 holds when parameter updates are learning-rate bounded
+and the map $\theta \mapsto h_l^{\mathrm{last}}(\cdot;\theta)$ is
+locally Lipschitz. Re-sampling the probe can add an
+$\eta_t$-independent term of order
+$O(|\widetilde{\mathcal{D}}|^{-1/2})$; empirically this term is small
+at the probe sizes used in our verification. Assumption~2
+($\gamma^{(t)}\ge\gamma_{\min}$) is checked in
+App.~\ref{app:thm-verification}. Assumption~3 is enforced by sign
+calibration in Alg.~\ref{alg:tads}.
+
+\subsection{Step 1: Angular bound}
+\label{app:step-angular}
+
+The Davis--Kahan $\sin\Theta$ theorem~\cite{daviskahan} states that
+for symmetric matrices $A,B$ with top unit eigenvectors $u,v$ and
+top eigengap $\delta=\lambda_1(A)-\lambda_2(A)>0$,
+\[
+\sin\Theta(u,v)\le \frac{\|A-B\|_F}{\delta},
+\qquad
+\Theta(u,v)=\arccos|\langle u,v\rangle|.
+\]
+Apply this with $A=\Sigma^{(t)}$, $B=\Sigma^{(t+1)}$,
+$\delta=\gamma^{(t)}\ge\gamma_{\min}$, and
+$\|\Sigma^{(t+1)}-\Sigma^{(t)}\|_F\le C_\Sigma\eta_t$. Then
+\begin{equation}
+  \sin\Theta\bigl(v_l^{(t+1)},v_l^{(t)}\bigr)
+  \le
+  \frac{C_\Sigma}{\gamma_{\min}}\eta_t .
+  \label{eq:angular-bound}
+\end{equation}
+
+\subsection{Step 2: Per-epoch and cumulative bounds}
+\label{app:step-euclidean}
+
+The angular bound is invariant to the PCA sign ambiguity. Sign
+calibration ensures
+$\langle v_l^{(t+1)},v_l^{(t)}\rangle>0$, so
+$\Theta\in[0,\pi/2)$. Hence
+\begin{equation}
+  \bigl\|v_l^{(t+1)}-v_l^{(t)}\bigr\|
+  =
+  2\sin(\Theta/2)
+  \le
+  2\sin\Theta
+  \le
+  \frac{2C_\Sigma}{\gamma_{\min}}\eta_t .
+  \label{eq:perepoch-bound}
+\end{equation}
+This is the per-epoch bound in Theorem~\ref{thm:stability}. Summing
+over epochs gives
+\begin{equation}
+  \bigl\|v_l^{(t+m)}-v_l^{(t)}\bigr\|
+  \le
+  \frac{2C_\Sigma}{\gamma_{\min}}
+  \sum_{s=t}^{t+m-1}\eta_s .
+  \label{eq:cumulative-bound-app}
+\end{equation}
+Under a decaying learning-rate schedule, the tail
+$\sum_{s\ge t}\eta_s$ shrinks with $t$, yielding the stated
+$\varepsilon$-stationarity.
+
+\subsection{Step 3: Score stability transfer}
+\label{app:score-stability}
+
+Write the \textsc{TADS} score as
+\[
+s_i^{(t)} = B_i^{(t)}A_i^{(t)},
+\qquad
+B_i^{(t)} := \tilde{\mathcal{R}}_i^{(t)} \in (0,1),
+\qquad
+A_i^{(t)} := 1+\lambda\widetilde{\mathrm{align}}_i^{(t)} .
+\]
+Here $B_i^{(t)}$ is the calibrated-utility base ranking
+(Eq.~\ref{eq:calibrated}) and $A_i^{(t)}\in[1,1+\lambda]$ is the
+anchor factor.
+
+\begin{corollary}[Score stability transfer]
+\label{cor:score-stability}
+Assume $|B_i^{(t)}|\le B_{\max}$, the sequence-mean activations
+satisfy $\|\bar h_l(x_i;\theta_{t-1})\|\le H_{\max}$, and the
+min--max normalisation in Eq.~\ref{eq:align} has Lipschitz constant
+$L_{\mathrm{norm}}$. Then the anchor-induced score change satisfies
+\begin{equation}
+  \bigl|
+  B_i^{(t+1)}
+  \bigl(A_i^{(t+1)}-A_i^{(t)}\bigr)
+  \bigr|
+  \le
+  B_{\max}\lambda L_{\mathrm{norm}}H_{\max}
+  \frac{2C_\Sigma}{\gamma_{\min}}\eta_t
+  =
+  O(\lambda\eta_t).
+  \label{eq:cor-score-bound}
+\end{equation}
+\end{corollary}
+
+\begin{proof}
+By Cauchy--Schwarz,
+$\langle \bar h_l(x_i;\theta_{t-1}),v_l^{(t)}\rangle$ is
+$H_{\max}$-Lipschitz in $v_l^{(t)}$. Therefore the raw alignment
+changes by at most
+$H_{\max}\|v_l^{(t+1)}-v_l^{(t)}\|$. Composing with the
+$L_{\mathrm{norm}}$-Lipschitz min--max normalisation and applying
+Eq.~\ref{eq:perepoch-bound} gives
+\[
+|A_i^{(t+1)}-A_i^{(t)}|
+\le
+\lambda L_{\mathrm{norm}}H_{\max}
+\frac{2C_\Sigma}{\gamma_{\min}}\eta_t .
+\]
+Multiplying by $|B_i^{(t+1)}|\le B_{\max}$ proves
+Eq.~\ref{eq:cor-score-bound}.
+\end{proof}
+
+The corollary holds for any uniformly bounded base ranking score
+$B_i^{(t)}$; for the calibrated utility of Eq.~\ref{eq:calibrated}
+the bound holds with $B_{\max}=1$ since
+$\tilde{\mathcal{R}}_i^{(t)} \in (0,1)$. Thus the stability result
+concerns the trajectory anchor and its multiplicative factor; it is
+not tied to the particular calibrated-utility transform used in our
+implementation.
+
+% =====================================================================
+\section{Experimental Setup Details}
+\label{app:setup-details}
+
+\paragraph{Hardware.}
+NVIDIA A-series 80GB GPUs with NVLink. Main LLaMA-2-7B experiments:
+single 8$\times$A100 node. Qwen2.5-14B LoRA scaling: $8\times$A100.
+
+\paragraph{Main experiment: LLaMA-2-7B full fine-tuning.}
+Adam ($\beta_1=0.9, \beta_2=0.999$), learning rate $2\times10^{-5}$,
+cosine decay to zero, warmup ratio 0.03, weight decay 0.1, bf16
+precision, 3 epochs, batch size 128, cutoff length 2{,}048,
+gradient checkpointing, 8-bit AdamW (bitsandbytes). The
+configuration is held fixed across selection methods.
+
+\paragraph{Evaluation protocol.}
+We evaluate with lm-evaluation-harness~\cite{eval-harness} on nine
+tasks: MMLU, MMLU-Pro, GSM8K, SVAMP, HumanEval, MBPP, TydiQA,
+XQuAD, and BBH. Per-task scores and AVG are reported. Concrete
+prompts and scoring routines for each benchmark appear in
+App.~\ref{app:examples}.
+
+\paragraph{\textsc{TADS}-specific hyperparameters.}
+Probe size $|\widetilde{\mathcal{D}}_t|=1{,}024$; trajectory anchor
+refreshed each epoch; alignment averaged over all decoder layers;
+default $\lambda=1.0$. Numerical stabiliser $\varepsilon=10^{-6}$
+in both Eq.~\ref{eq:w} and Eq.~\ref{eq:calibrated}.
+
+\paragraph{Composite reward and calibrated utility.}
+At each refresh step we form
+$\mathcal{R}_i^{(t)} = w^{(t)}\mathcal{L}_i^{(t)} +
+(1-w^{(t)})\mathcal{H}_i^{(t)}$
+with $w^{(t)}$ from Eq.~\ref{eq:w} computed pool-wide, and obtain
+the calibrated utility
+$\tilde{\mathcal{R}}_i^{(t)} = \sigma\bigl((\mathcal{R}_i^{(t)} -
+\bar{\mathcal{R}}^{(t)})/(\sigma_{\mathcal{R}}^{(t)} +
+\varepsilon)\bigr)$
+via Eq.~\ref{eq:calibrated}. The transform is deterministic, adds
+no learned parameters, and reuses the pool-level statistics already
+computed for $w^{(t)}$.
+
+\paragraph{Implementation note.}
+Our public implementation includes an optional PPO actor--critic
+substrate retained for compatibility with future extensions to
+verifiable-reward settings (RLVR/GRPO). The experiments in this
+paper do not consume the actor's output in the ranking rule; all
+reported numbers use the deterministic calibrated-utility ranking
+of Eq.~\ref{eq:score}.
+
+% =====================================================================
+\section{$\lambda$-Ablation and Qwen2.5-0.5B Sanity Track}
+\label{app:setup-validation}
+
+Before the main experiments, we validate the pipeline on
+Qwen2.5-0.5B with full fine-tuning on Alpaca-GPT4 ($52{,}002$ pairs),
+$\rho=10\%$, 3 epochs, AdamW, lr $2\times10^{-5}$, cosine schedule
+with $10\%$ warmup, MMLU + GSM8K evaluation.
+
+The $\lambda$-ablation (Table~\ref{tab:lambda-05b}) is
+non-monotonic: small non-zero $\lambda$ improves over the
+$\lambda=0$ calibrated-utility base, while large $\lambda$
+saturates.
+
+% =====================================================================
+\section{Scaling Study: Qwen2.5-14B}
+\label{app:scaling}
+
+Qwen2.5-14B + LoRA ($r=16, \alpha=32$, dropout $0.05$, target
+modules $\{q,k,v,o,\text{gate},\text{up},\text{down}\}$proj),
+Alpaca-GPT4 ($N=52{,}002$), 3 epochs, batch size 64, lr
+$2\times10^{-4}$, cosine, $3\%$ warmup, $8\times$A100. Cost
+breakdown in Table~\ref{tab:cost-14b-main}; \textsc{TADS}-only
+operations (anchor PCA + alignment scoring) add $\sim$15s to a
+$\sim$35-minute epoch, i.e. $<0.5\%$ overhead.
+
+% =====================================================================
+\section{Empirical Verification of Theorem~\ref{thm:stability}}
+\label{app:thm-verification}
+
+We instrument a Qwen2.5-0.5B LoRA run on Alpaca-GPT4 with a
+verifier every 25 optimiser steps on a fixed 2{,}000-sample probe.
+For each of 24 decoder layers, the verifier computes
+$\gamma_l^{(t)}, \|\Sigma_l^{(t+1)}-\Sigma_l^{(t)}\|_F,$ and
+$d_l^{(t)}=\|v_l^{(t+1)}-v_l^{(t)}\|$.
+
+\paragraph{Assumptions hold.}
+$\gamma_{\min}=0.050$; trimmed $\hat C_\Sigma=5.78\times10^3$;
+sign-flip rate $3.6\%$ (below $5\%$ tolerance). The empirical
+per-step bound at $\eta=2\times10^{-4}$ is
+$(2\hat C_\Sigma / \gamma_{\min}) \eta = 46.24$, never violated
+across $1{,}496$ measurements; median tightness
+$1.46\times10^{-3}$, worst $7.4\times10^{-3}$.
+
+\paragraph{No-anchor diagnostic.}
+The matched no-anchor control (\texttt{use\_anchor=false},
+$\lambda=0$) yields $2.9\times$ larger median displacement, a
+single-layer maximum of $1.998$, and sign-flip rate above $5\%$
+(Table~\ref{tab:dstep-spread}).
+
+% =====================================================================
+\section{In-Progress Empirical Study}
+\label{app:inprogress}
+
+The broader study extends along three axes: (i) scaling across
+model sizes (0.5B / 7B / 14B); (ii) robustness across additional
+IT corpora beyond Alpaca-GPT4 (Evol-Instruct-style); (iii)
+ablations over $\rho$, anchor refresh frequency, layer subsets,
+sign calibration, probe size.
+
+% =====================================================================
+\section{Dataset and Benchmark Examples}
+\label{app:examples}
+
+This appendix provides one concrete worked example of the candidate
+pool (Alpaca-GPT4) and of each of the nine evaluation benchmarks,
+to make the scoring conventions explicit.
+
+\subsection{Candidate pool — Alpaca-GPT4}
+\label{app:ex-alpaca}
+
+Each candidate $x_i \in \mathcal{D}$ is a JSON object with three
+fields: \texttt{instruction}, \texttt{input} (optional, present in
+${\sim}40\%$ of samples), and \texttt{output}.
+
+\paragraph{Example (one item from Alpaca-GPT4).}
+\begin{verbatim}
+{
+  "instruction": "Translate the following English sentence to French.",
+  "input":       "Hello, how are you doing today?",
+  "output":      "Bonjour, comment allez-vous aujourd'hui ?"
+}
+\end{verbatim}
+
+\paragraph{Tokenisation (Alpaca default template).}
+The fields are flattened into
+\verb|### Instruction:\n{instruction}\n\n### Input:\n{input}\n\n### Response:\n|
+followed by the \texttt{output}. The template and instruction
+tokens are masked with $-100$ in the labels; only response tokens
+contribute to the cross-entropy loss used in $\mathcal{L}_i$.
+
+\subsection{MMLU}
+\label{app:ex-mmlu}
+
+14{,}042 four-choice items across 57 subjects. Five-shot prompting;
+scoring by next-token logit comparison.
+
+\paragraph{Example item (subject: high\_school\_biology).}
+\begin{verbatim}
+Q: Which of the following organelles is responsible for
+   producing most of a eukaryotic cell's ATP?
+(A) Ribosome   (B) Mitochondrion
+(C) Nucleus    (D) Golgi apparatus
+Answer:
+\end{verbatim}
+
+\paragraph{How a model "matches".} Predict the next token after
+\verb|Answer:|. We extract logits at four candidate-letter token
+positions and pick the largest. Correct iff the chosen letter is
+\verb|B|.
+
+\subsection{MMLU-Pro}
+\label{app:ex-mmlu-pro}
+
+12{,}032 items, ten options per question. Five-shot CoT.
+
+\paragraph{Example item (subject: physics).}
+\begin{verbatim}
+Q: A particle moves in a circle of radius 2 m at constant
+   speed 3 m/s. What is the magnitude of its centripetal
+   acceleration?
+Options: (A) 0.67 (B) 1.5 (C) 3.0 (D) 4.5 (E) 6.0
+         (F) 9.0 (G) 12.0 (H) 18.0 (I) 24.0 (J) 36.0
+Answer: Let's think step by step.
+\end{verbatim}
+
+\paragraph{How a model "matches".} Model generates a CoT ending in
+\verb|The answer is (X)|. Extracted letter must equal the gold
+label (\verb|D|: $a=v^2/r=9/2=4.5$).
+
+\subsection{GSM8K}
+\label{app:ex-gsm8k}
+
+1{,}319 grade-school word problems. Eight-shot CoT; exact-match on
+the final numeric answer.
+
+\paragraph{Example item.}
+\begin{verbatim}
+Q: Natalia sold clips to 48 of her friends in April, and then
+   she sold half as many clips in May. How many clips did
+   Natalia sell altogether in April and May?
+A: Let's think step by step. In April she sold 48. In May she
+   sold 48 / 2 = 24. Altogether she sold 48 + 24 = 72.
+   The answer is 72.
+\end{verbatim}
+
+\paragraph{How a model "matches".} Extract the integer after
+\verb|The answer is| (fallback: last numeric in text). Equality to
+gold target $72$ counts as correct.
+
+\subsection{SVAMP}
+\label{app:ex-svamp}
+
+1{,}000 arithmetic word problems with adversarial phrasings.
+Eight-shot CoT.
+
+\paragraph{Example item.}
+\begin{verbatim}
+Body: Each child has 3 pencils and 4 erasers. There are 8 children.
+Q: How many pencils are there in total?
+A: Each child has 3 pencils, and there are 8 children.
+   Total = 3 * 8 = 24. The answer is 24.
+\end{verbatim}
+
+\paragraph{How a model "matches".} Same as GSM8K — exact match on
+trailing integer.
+
+\subsection{HumanEval}
+\label{app:ex-humaneval}
+
+164 hand-written Python programming problems with hidden unit
+tests. Zero-shot; pass@1 by execution.
+
+\paragraph{Example item.}
+\begin{verbatim}
+def has_close_elements(numbers: List[float],
+                       threshold: float) -> bool:
+    """ Check if in given list of numbers, are any two numbers
+    closer to each other than given threshold.
+    >>> has_close_elements([1.0, 2.0, 3.0], 0.5)
+    False
+    >>> has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3)
+    True
+    """
+\end{verbatim}
+
+\paragraph{How a model "matches".} Model greedily generates the
+function body. We concatenate prompt + completion, write to a
+temp file, and run hidden unit tests in a sandboxed subprocess
+with 3s timeout. The problem is passed iff all assertions hold;
+pass@1 is the fraction of problems passed.
+
+\subsection{MBPP}
+\label{app:ex-mbpp}
+
+500 test-split Python problems with three given unit tests per
+problem. Three-shot; pass@1 by execution.
+
+\paragraph{Example item.}
+\begin{verbatim}
+"""
+Write a function to find the minimum cost path to reach (m, n)
+from (0, 0) for the given cost matrix cost[][].
+"""
+TESTS:
+assert min_cost([[1,2,3],[4,8,2],[1,5,3]], 2, 2) == 8
+assert min_cost([[2,3,4],[5,9,3],[2,6,4]], 2, 2) == 12
+assert min_cost([[3,4,5],[6,10,4],[3,7,5]], 2, 2) == 16
+\end{verbatim}
+
+\paragraph{How a model "matches".} Concatenate the completion with
+the three asserts; if all asserts pass without raising, the problem
+is passed. pass@1 is the fraction passed.
+
+\subsection{TydiQA}
+\label{app:ex-tydiqa}
+
+Multilingual gold-passage QA in nine languages (en, ar, bn, fi, id,
+ko, ru, sw, te). One-shot; token-overlap F1.
+
+\paragraph{Example item (Korean).}
+\begin{verbatim}
+Passage: 에펠탑은 1889년 파리 만국박람회를 위해 Gustave Eiffel
+회사가 건설한 격자형 철탑이다. 높이는 약 330m이며, 건설 당시
+세계에서 가장 높은 인공 구조물이었다.
+Q: 에펠탑의 높이는 얼마인가?
+A: 약 330m
+\end{verbatim}
+
+\paragraph{How a model "matches".} After lowercasing, removing
+articles, and stripping punctuation, we compute token precision and
+recall between the predicted answer and each gold answer, taking
+the maximum F1. Per-language F1 is averaged over the nine
+languages.
+
+\subsection{XQuAD}
+\label{app:ex-xquad}
+
+1{,}190 parallel SQuAD-style items in eleven languages. One-shot;
+SQuAD-style token-overlap F1.
+
+\paragraph{Example item (Spanish).}
+\begin{verbatim}
+Passage: Los Beatles fueron una banda de rock inglesa formada
+en Liverpool en 1960. Estaba integrada por John Lennon, Paul
+McCartney, George Harrison y Ringo Starr.
+Q: ¿En qué ciudad se formaron los Beatles?
+A: Liverpool
+\end{verbatim}
+
+\paragraph{How a model "matches".} Same F1 procedure as TydiQA;
+report average over eleven languages.
+
+\subsection{BBH}
+\label{app:ex-bbh}
+
+Big-Bench Hard: 27 sub-tasks. Three-shot CoT.
+
+\paragraph{Example item (sub-task: logical\_deduction\_three\_objects).}
+\begin{verbatim}
+Q: Three friends, Alice, Bob, and Carol, finished a race.
+   Alice finished after Bob. Carol finished before Bob.
+   Who finished last?
+   Options: (A) Alice  (B) Bob  (C) Carol
+A: Let's think step by step. Carol < Bob < Alice, so Alice
+   finished last. The answer is (A).
+\end{verbatim}
+
+\paragraph{How a model "matches".} Model ends with
+\verb|The answer is (X)| or with a numeric/textual answer. The
+per-sub-task scorer compares against the gold; BBH score is the
+unweighted mean accuracy across 27 sub-tasks.

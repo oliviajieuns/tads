@@ -1,0 +1,69 @@
+% =====================================================================
+%  Section 5: Discussion
+% =====================================================================
+\section{Discussion}
+\label{sec:discussion}
+
+\paragraph{What TADS delivers.}
+The deliverable of \textsc{TADS} is the \emph{trajectory anchor}:
+a model-intrinsic, per-layer capability direction extracted online
+from the hidden-state trajectory of the very model being
+fine-tuned. The anchor adds a structural signal to dynamic
+re-ranking that scalar composite rewards alone cannot express, and
+it is the object of both our method (it is what makes
+\textsc{TADS} different from prior composite-reward selectors) and
+our theory (Theorem~\ref{thm:stability} guarantees its stability
+under a positive eigengap). Everything else in the selection rule
+is built around the anchor: the calibrated utility
+$\tilde{\mathcal{R}}_i^{(t)}$ (Eq.~\ref{eq:calibrated}) acts as a
+stable carrier, and the single hyperparameter $\lambda$ controls
+how strongly the anchor reshapes the ranking. Setting $\lambda=0$
+disables the anchor and recovers the carrier alone, yielding a
+clean ablation that isolates the anchor's contribution.
+
+The anchor is model-intrinsic: it requires no seed examples,
+validation labels, external judges, or auxiliary scorers, and it
+is refreshed at every epoch as the model's hidden-state geometry
+evolves. The stability guarantee we prove therefore concerns the
+\emph{structural component} introduced by \textsc{TADS}, not the
+calibrated-utility carrier or any particular scalar utility
+transform layered on top.
+
+\paragraph{Why the anchor helps.}
+Dynamic re-ranking based only on a scalar transform of the
+composite reward can be unstable in multi-task instruction pools.
+In particular, the variance-ratio weight used to combine difficulty
+and uncertainty drifts with task composition because it mixes
+within-task and between-task variance
+(Eq.~\ref{eq:total-variance}); the pool-level calibration removes
+the additive baseline but does not address residual geometric
+structure in the candidate distribution. The trajectory anchor adds
+a pool-level geometric signal that favours samples aligned with the
+representation direction the model is currently shaping.
+
+This also separates \textsc{TADS} from dynamic data selection for
+RLVR, such as DOTS~\cite{sun2025dots}. DOTS selects GRPO questions
+using rollout outcomes and verifiable rewards; \textsc{TADS}
+re-ranks supervised instruction--response pairs using hidden-state
+geometry. DOTS is therefore an important related method, but not a
+directly runnable baseline for our SFT setting, where automatic
+verifiers, binary rewards, and rollout groups are unavailable by
+default.
+
+\paragraph{Implications and limitations.}
+The stability bound makes the anchor a reproducible structural
+object rather than probe noise. The eigengap $\gamma^{(t)}$ also
+serves as a diagnostic: when it is large, the anchor is sharply
+identified; when the covariance becomes nearly isotropic, the
+anchor weakens and the method naturally reduces toward the
+no-anchor calibrated-utility base.
+
+\textsc{TADS} currently targets text-only SFT with single-sequence
+instruction--response pairs and a rank-one anchor per layer. Future
+extensions include turn-aware anchors for multi-turn dialogue,
+separate anchors for multimodal representations, and rank-$r$
+eigenspace anchors for samples combining multiple skills.
+Extending trajectory anchoring to RL fine-tuning would require a
+different experimental setup, since prompts, sampled responses,
+rollouts, and reward-conditioned states define different possible
+anchor spaces.

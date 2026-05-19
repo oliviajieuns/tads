@@ -1,0 +1,39 @@
+% =====================================================================
+%  Section 6: Conclusion
+% =====================================================================
+\section{Conclusion}
+\label{sec:conclusion}
+
+We presented \textsc{TADS} (Trajectory-Anchored Dynamic Selection),
+whose central contribution is the \emph{trajectory anchor}: a
+per-layer capability direction extracted online from the model's
+own hidden-state trajectory at each refresh step, with no
+in-domain seed, labels, validation set, or auxiliary scorer
+required. The anchor is what makes \textsc{TADS} different from
+prior dynamic IT-data selectors -- it captures direction in
+representation space rather than only the magnitude of a scalar
+composite reward. The remaining components of the selection rule
+(a deterministic pool-normalised calibrated utility
+$\tilde{\mathcal{R}}_i^{(t)} \in (0,1)$, a single multiplicative
+combination, and one hyperparameter $\lambda$) exist to integrate
+the anchor with the existing composite-reward signal in a
+reproducible way, with $\lambda{=}0$ disabling the anchor and
+recovering a clean base ranking.
+
+We proved a stability guarantee (Theorem~\ref{thm:stability}):
+under a positive eigenvalue gap, the trajectory anchor changes by
+at most a learning-rate-scaled amount per epoch, and this bound
+transfers to the ranking criterion. To our knowledge, this is the
+first stability guarantee for a dynamic IT data-selection method,
+and it is base-agnostic rather than tied to a specific utility
+transform.
+
+On the LLaMA-2-7B + Alpaca-GPT4 setting at $10\%$ selection,
+\textsc{TADS} improves over the calibrated-utility base on the
+completed metrics (MMLU, GSM8K, SVAMP, MBPP, TydiQA, BBH) while
+adding under $0.5\%$ wall-clock overhead. A broader study --
+across model scales from 0.5B to 14B, multiple instruction-tuning
+datasets, and an eight-task benchmark suite -- is in progress and
+described in App.~\ref{app:inprogress}; it is designed to test
+whether the gains hold consistently across models, datasets, and
+evaluation regimes under a single \textsc{TADS} configuration.

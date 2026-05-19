@@ -1,0 +1,359 @@
+\section{Method: Trajectory-Anchored Dynamic Selection (TADS)}
+\label{sec:method}
+
+We formalise the data-selection problem
+(Sec.~\ref{sec:problem-setup}) and the variance issue that motivates
+a structural anchor (Sec.~\ref{sec:method-motivation}), introduce
+the trajectory-anchor extraction and the calibrated-utility ranking
+rule (Sec.~\ref{sec:method-core}), and finally state the stability
+theorem (Sec.~\ref{sec:method-theory}).
+
+
+\subsection{Problem setup}
+\label{sec:problem-setup}
+
+Let $\mathcal{D}=\{x_i\}_{i=1}^N$ be a candidate instruction-tuning
+pool, where each $x_i$ is an instruction--response pair tokenised
+as a single sequence. Let $f_\theta$ be a base LLM with parameters
+$\theta$. Given a selection budget $B \le N$, equivalently a
+selection ratio $\rho=B/N$ with $0<\rho\le1$, the goal is to choose
+a subset $\mathcal{S}\subset\mathcal{D}$ with $|\mathcal{S}|=B$ so
+that fine-tuning $f_\theta$ on $\mathcal{S}$ maximises performance
+on evaluation tasks $\{T_1,\ldots,T_M\}$. We work in the
+\emph{multi-task} setting, where a single subset $\mathcal{S}$ is
+used for all $M$ tasks. \textsc{TADS} treats this as a per-epoch
+\emph{dynamic re-ranking} problem: each candidate $x_i$ is assigned
+a scalar score $s_i^{(t)}$, and the top-$B$ are selected at each
+epoch $t$.
+
+\paragraph{Token-level state dynamics.}
+For a hidden layer $l \in \{1,\ldots,L\}$ of $f_\theta$ and an
+input sequence $x$ with $K_x$ valid tokens, let
+$h_l^{(k)}(x;\theta)\in\mathbb{R}^d$ denote the layer-$l$ hidden
+state at the $k$-th token position. The transition between
+consecutive token positions is
+\begin{equation}
+  s_l^{(k)}(x;\theta) := h_l^{(k)}(x;\theta)-h_l^{(k-1)}(x;\theta),
+  \qquad k=2,\ldots,K_x .
+  \label{eq:transition}
+\end{equation}
+
+\paragraph{Contextualisation delta.}
+With $h_l^{\mathrm{first}}(x;\theta) := h_l^{(1)}(x;\theta)$ and
+$h_l^{\mathrm{last}}(x;\theta) := h_l^{(K_x)}(x;\theta)$,
+\begin{equation}
+  \Delta h_l(x;\theta) :=
+  h_l^{\mathrm{last}}(x;\theta) - h_l^{\mathrm{first}}(x;\theta)
+  = \sum_{k=2}^{K_x} s_l^{(k)}(x;\theta).
+  \label{eq:delta}
+\end{equation}
+
+\paragraph{Sequence-mean activation.}
+\begin{equation}
+  \bar h_l(x;\theta) :=
+  \frac{1}{K_x}\sum_{k=1}^{K_x} h_l^{(k)}(x;\theta).
+  \label{eq:meanact}
+\end{equation}
+
+\subsection{Why multi-task selection benefits from a structural anchor}
+\label{sec:method-motivation}
+
+Composite-reward dynamic selectors~\cite{kung2023activeit,
+sun2025dots} score each candidate by combining a difficulty term
+$\mathcal{L}_i$ (response-token cross-entropy) and an uncertainty
+term $\mathcal{H}_i$ (mean predictive entropy):
+\begin{equation}
+  \mathcal{R}_i = w\,\mathcal{L}_i + (1-w)\,\mathcal{H}_i,
+  \label{eq:composite}
+\end{equation}
+with the variance-ratio weight
+\begin{equation}
+  w =
+  \frac{\mathrm{Var}_{x \in \mathcal{D}}(\mathcal{L})}
+       {\mathrm{Var}_{x \in \mathcal{D}}(\mathcal{L}) +
+        \mathrm{Var}_{x \in \mathcal{D}}(\mathcal{H}) + \varepsilon}.
+  \label{eq:w}
+\end{equation}
+We adopt the composite-reward construction unchanged from prior
+IT-data selection~\cite{sun2025dots, kung2023activeit}.
+
+\paragraph{The multi-task variance trap.}
+By the law of total variance,
+\begin{equation}
+  \mathrm{Var}_{x \in \mathcal{D}}(\mathcal{L})
+  =
+  \underbrace{\mathbb{E}_{m}\bigl[\mathrm{Var}_{x \in \mathcal{D}_m}(\mathcal{L})\bigr]}_{\text{within-task}}
+  +
+  \underbrace{\mathrm{Var}_{m}\bigl[\mathbb{E}_{x \in \mathcal{D}_m}(\mathcal{L})\bigr]}_{\text{between-task}},
+  \label{eq:total-variance}
+\end{equation}
+and analogously for $\mathcal{H}$. In a multi-task pool the
+between-task term dominates, so $w$ depends strongly on the task
+mix rather than per-sample informativeness and drifts across runs.
+
+\paragraph{A bounded, pool-level signal absorbs the drift.}
+The trajectory anchor $v_l^{(t)}$ (Sec.~\ref{sec:method-core}) is a
+pool-level summary -- the top principal direction of the
+contextualisation deltas across a probe subset, not a per-sample
+statistic. Its epoch-to-epoch change is uniformly bounded by the
+learning rate (Theorem~\ref{thm:stability}), while $w$ has no
+comparable bound. \textsc{TADS} composes the task-mix-drifting
+base ranking $\tilde{\mathcal{R}}_i^{(t)}$ (Eq.~\ref{eq:calibrated}
+below) with a stability-controlled structural factor, each at the
+variance scale where it is informative.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[scale=0.95, every node/.style={font=\small}]
+  \draw[gray!30, very thin, -{Latex[length=2mm]}] (-0.1,0) -- (6.4,0);
+  \draw[gray!30, very thin, -{Latex[length=2mm]}] (0,-0.1) -- (0,3.8);
+  \node[gray!50, font=\scriptsize] at (6.5,-0.18) {$\mathbb{R}^d$};
+  \filldraw[black] (0,0) circle (1.2pt);
+  \foreach \x/\y in
+    {3.8/1.2, 4.2/1.6, 3.5/1.8, 4.5/2.0, 3.0/1.3, 4.0/2.3, 3.7/1.5, 4.6/1.4, 3.3/1.6}
+  {
+    \draw[-{Latex[length=1.6mm]}, orange!60, thin, opacity=0.75]
+      (0,0) -- (\x,\y);
+  }
+  \node[orange!80!black, font=\footnotesize, align=left, anchor=north west] at (3.5,0.85)
+    {Probe deltas\\
+     $\{\Delta h_l(x;\theta_{t-1})\}_{x\in\widetilde{\mathcal{D}}_t}$};
+  \draw[-{Latex[length=2.6mm]}, blue!75!black, ultra thick]
+    (0,0) -- (5.0,2.0);
+  \node[blue!75!black, font=\bfseries] at (5.35,2.25) {$v_l^{(t)}$};
+  \draw[-{Latex[length=2.2mm]}, blue!35, dashed, semithick]
+    (0,0) -- (5.0,1.65);
+  \node[blue!50, font=\scriptsize] at (5.40,1.45) {$v_l^{(t-1)}$};
+  \node[gray!60!black, font=\scriptsize, align=left] at (6.4,1.85)
+    {Thm.~\ref{thm:stability}:\\[-1pt]
+     $\le \tfrac{2C_\Sigma}{\gamma_{\min}}\,\eta_t$};
+  \filldraw[red!75!black] (2.2,2.85) circle (2pt);
+  \node[red!75!black, font=\footnotesize] at (1.45,3.05)
+    {$\bar h_l(x_i;\theta_{t-1})$};
+  \draw[red!75!black, dotted, thick] (2.2,2.85) -- (2.88,1.15);
+  \filldraw[red!75!black] (2.88,1.15) circle (1.5pt);
+  \node[red!75!black, font=\scriptsize, anchor=west]
+    at (1.7, 1.2) {$\mathrm{align}_i^{(t)}$};
+\end{tikzpicture}
+\caption{\textbf{Trajectory anchor at epoch~$t$.}
+Orange arrows are the contextualisation deltas
+$\Delta h_l(x;\theta_{t-1})$ from a probe subset
+$\widetilde{\mathcal{D}}_t$---the \emph{sequence-level} trajectory
+inside each sample. The bold blue arrow $v_l^{(t)}$ is their top
+principal direction (the anchor); the dashed $v_l^{(t-1)}$ is the
+previous epoch's anchor, the \emph{epoch-level} trajectory whose
+deviation is bounded by Theorem~\ref{thm:stability}. A candidate's
+alignment is the projection of its sequence-mean activation
+$\bar h_l(x_i;\theta_{t-1})$ onto $v_l^{(t)}$.}
+\label{fig:anchor}
+\end{figure}
+
+\subsection{The trajectory anchor and TADS ranking score}
+\label{sec:method-core}
+
+The central object of \textsc{TADS} is the \emph{trajectory anchor}
+$v_l^{(t)}$: a per-layer capability direction extracted online
+from the model's own hidden-state trajectory at each refresh step.
+We first describe how the anchor is extracted
+(Sec.~\ref{sec:method-core}, ``Probe subset and trajectory
+anchor'') and how a candidate's alignment to it is measured
+(``Candidate alignment''); these are the novel ingredients of the
+selection rule. We then describe a supporting deterministic
+transform of the composite reward into a bounded calibrated utility
+(``Calibrated utility''), which serves as the carrier signal that
+the anchor factor modulates, and combine the two into the final
+score (``Selection score''), controlled by a single hyperparameter
+$\lambda \ge 0$.
+
+\paragraph{Probe subset and trajectory anchor.}
+At the start of epoch~$t$, we draw a probe subset
+$\widetilde{\mathcal{D}}_t \subset \mathcal{D}$ uniformly at random
+with $|\widetilde{\mathcal{D}}_t| = 1024$, re-sampled each epoch.
+For each layer $l$, we collect
+$\{\Delta h_l(x;\theta_{t-1})\}_{x \in \widetilde{\mathcal{D}}_t}$
+and form the empirical mean and centred covariance:
+\begin{align}
+  \overline{\Delta h}_l^{(t)}
+   &:= \frac{1}{|\widetilde{\mathcal{D}}_t|}
+        \sum_{x \in \widetilde{\mathcal{D}}_t}
+        \Delta h_l(x;\theta_{t-1}),
+   \label{eq:mu} \\[2pt]
+  \Sigma_l^{(t)}
+   &:= \frac{1}{|\widetilde{\mathcal{D}}_t|}
+        \sum_{x \in \widetilde{\mathcal{D}}_t}
+        \bigl(\Delta h_l - \overline{\Delta h}_l^{(t)}\bigr)
+        \bigl(\Delta h_l - \overline{\Delta h}_l^{(t)}\bigr)^{\!\top}.
+   \label{eq:sigma}
+\end{align}
+The trajectory anchor at epoch~$t$ for layer $l$ is the top unit
+eigenvector of $\Sigma_l^{(t)}$:
+\begin{equation}
+  v_l^{(t)} = \arg\max_{\|v\| = 1} v^{\!\top}\Sigma_l^{(t)}v ,
+  \label{eq:anchor-def}
+\end{equation}
+sign-calibrated so that
+$\langle v_l^{(t)}, \overline{\Delta h}_l^{(t)} \rangle > 0$.
+The anchor depends only on $\theta_{t-1}$ and the candidate pool;
+it requires no in-domain seed samples, labels, or auxiliary model.
+
+\paragraph{Candidate alignment.}
+The per-layer alignment is
+$\langle \bar h_l(x_i;\theta_{t-1}), v_l^{(t)} \rangle$. Aggregating
+across layers and normalising,
+\begin{equation}
+  \mathrm{align}_i^{(t)} :=
+  \frac{1}{L}\sum_{l=1}^{L}
+  \bigl\langle \bar h_l(x_i;\theta_{t-1}), v_l^{(t)} \bigr\rangle,
+  \label{eq:align-raw}
+\end{equation}
+\begin{equation}
+  \widetilde{\mathrm{align}}_i^{(t)} :=
+  \frac{\mathrm{align}_i^{(t)} - \min_j \mathrm{align}_j^{(t)}}
+       {\max_j \mathrm{align}_j^{(t)} - \min_j \mathrm{align}_j^{(t)}}
+  \in [0,1].
+  \label{eq:align}
+\end{equation}
+
+\paragraph{Calibrated utility (pool-normalised composite reward).}
+The composite reward $\mathcal{R}_i^{(t)}$ in
+Eq.~\ref{eq:composite} carries a task-mix-dependent scale
+(Sec.~\ref{sec:method-motivation}). We mitigate this by passing it
+through a deterministic pool-level z-score followed by a logistic
+map, yielding a bounded \emph{calibrated utility}
+\begin{equation}
+  \tilde{\mathcal{R}}_i^{(t)}
+  :=
+  \sigma\!\left(
+    \frac{\mathcal{R}_i^{(t)} - \bar{\mathcal{R}}^{(t)}}
+         {\sigma_{\mathcal{R}}^{(t)} + \varepsilon}
+  \right)
+  \;\in\; (0,1),
+  \label{eq:calibrated}
+\end{equation}
+where $\bar{\mathcal{R}}^{(t)}$ and $\sigma_{\mathcal{R}}^{(t)}$
+are the pool-level mean and standard deviation of
+$\{\mathcal{R}_i^{(t)}\}_{i=1}^N$ at epoch~$t$, $\varepsilon>0$ is
+a small numerical stabiliser ($10^{-6}$), and $\sigma(\cdot)$ is
+the logistic function. Centering removes the additive
+task-mix-dependent baseline that motivates the structural anchor
+(Eq.~\ref{eq:total-variance}); division by
+$\sigma_{\mathcal{R}}^{(t)}$ controls cross-task scale drift; and
+the logistic mapping renders $\tilde{\mathcal{R}}_i^{(t)}$ bounded
+and non-negative so it composes multiplicatively with the anchor
+factor below. The transform is deterministic: it adds only two
+pool-level scalar reductions per refresh step and requires no
+learned parameters, policy, or critic.
+
+\paragraph{Selection score.}
+\textsc{TADS} forms the final per-candidate ranking score by
+multiplying the calibrated utility by the trajectory-anchor factor:
+\begin{equation}
+\boxed{
+s_i^{(t)}
+=
+\underbrace{\tilde{\mathcal{R}}_i^{(t)}}_{\substack{\text{calibrated-utility factor} \in (0,1)\\[1pt]
+\text{sample-level signal}}}
+\cdot
+\underbrace{\bigl(1+\lambda \cdot \widetilde{\mathrm{align}}_i^{(t)}\bigr)}_{\substack{\text{anchor factor} \in [1, 1+\lambda]\\[1pt]
+\text{stability-controlled pool-level signal}}}
+}
+\label{eq:score}
+\end{equation}
+with hyperparameter $\lambda \ge 0$. The multiplicative form
+carries three useful properties. \emph{(i) Clean ablation:}
+$\lambda{=}0$ recovers the calibrated-utility base ranking
+$\tilde{\mathcal{R}}_i^{(t)}$ exactly; any gain at $\lambda>0$ is
+attributable to the trajectory anchor. \emph{(ii) Variance-scale
+decoupling:} the calibrated-utility factor still inherits any
+residual task-mix drift of Eq.~\ref{eq:total-variance} that
+survives centering; the anchor factor is a bounded pool-level PCA
+statistic that acts as a relative modulation rather than an
+additive score---a separation that additive composition would
+forfeit. \emph{(iii) Stability transfer:} the anchor factor is
+bounded in $[1, 1+\lambda]$ and its trajectory anchor is stable by
+Theorem~\ref{thm:stability}; the anchor-induced change in
+$s_i^{(t)}$ is bounded by $O(\lambda\eta_t)$
+(App.~\ref{app:score-stability}).
+
+
+\paragraph{Implementation note: dataset-level $w$.}
+The variance-ratio weight $w$ in Eq.~\ref{eq:w} is computed at the
+dataset level. A naive mini-batch implementation degenerates to
+$w \equiv 0$ when $|\mathcal{B}|=1$, silently collapsing the
+difficulty signal. \textsc{TADS} accumulates $\{\mathcal{L}_i\}$
+and $\{\mathcal{H}_i\}$ across all batches and computes $w$ once
+per epoch; the same pool-level statistics are reused for
+$\bar{\mathcal{R}}^{(t)}, \sigma_{\mathcal{R}}^{(t)}$ in
+Eq.~\ref{eq:calibrated}, so the calibrated utility adds no
+additional forward passes.
+
+\begin{algorithm}[t]
+\caption{Trajectory-Anchored Dynamic Selection (TADS)}
+\label{alg:tads}
+\begin{algorithmic}[1]
+\REQUIRE Pool $\mathcal{D}$, base model $f_{\theta_0}$, budget $B$,
+         layers $\{1,\ldots,L\}$, weight $\lambda$, epochs $T$, probe
+         size $|\widetilde{\mathcal{D}}|$
+\FOR{$t = 1, \dots, T$}
+  \STATE Sample probe set $\widetilde{\mathcal{D}}_t$ uniformly at random
+  \FOR{$l = 1, \dots, L$}
+    \STATE Compute deltas
+           $\{\Delta h_l(x; \theta_{t-1})\}_{x \in \widetilde{\mathcal{D}}_t}$
+           and covariance $\Sigma_l^{(t)}$
+           \hfill (Eqs.~\ref{eq:delta}--\ref{eq:sigma})
+    \STATE $v_l^{(t)} \leftarrow$ top-1 eigenvector of
+           $\Sigma_l^{(t)}$, sign-calibrated
+  \ENDFOR
+  \STATE For all $i$: aggregate $\widetilde{\mathrm{align}}_i^{(t)}$
+         \hfill (Eq.~\ref{eq:align})
+  \STATE Forward $\theta_{t-1}$ over $\mathcal{D}$ to collect
+         $\{\mathcal{L}_i, \mathcal{H}_i\}_{i=1}^N$
+  \STATE Compute pool-level $w$ and composite reward
+         $\mathcal{R}_i$
+         \hfill (Eqs.~\ref{eq:w},~\ref{eq:composite})
+  \STATE Compute pool moments
+         $\bar{\mathcal{R}}^{(t)}, \sigma_{\mathcal{R}}^{(t)}$ and
+         calibrated utility $\tilde{\mathcal{R}}_i^{(t)}$
+         \hfill (Eq.~\ref{eq:calibrated})
+  \STATE Score
+         $s_i^{(t)} \leftarrow
+          \tilde{\mathcal{R}}_i^{(t)} \cdot
+          (1 + \lambda \cdot \widetilde{\mathrm{align}}_i^{(t)})$
+         \hfill (Eq.~\ref{eq:score})
+  \STATE $\mathcal{S}_t \leftarrow$ top-$B$ samples by $s_i^{(t)}$;
+         fine-tune $\theta_{t-1} \to \theta_t$ on $\mathcal{S}_t$
+\ENDFOR
+\RETURN $\theta_T$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Stability of the trajectory anchor}
+\label{sec:method-theory}
+
+\begin{theorem}[Anchor stability]
+\label{thm:stability}
+Fix a layer $l$ and write $\Sigma^{(t)} := \Sigma_l^{(t)}$. Assume
+\emph{(1)} bounded covariance change,
+$\|\Sigma^{(t+1)}-\Sigma^{(t)}\|_F \le C_\Sigma \eta_t$;
+\emph{(2)} a positive eigenvalue gap,
+$\gamma^{(t)} := \lambda_1^{(t)}-\lambda_2^{(t)}
+\ge \gamma_{\min}>0$; and \emph{(3)} consistent sign calibration.
+Then the sign-calibrated trajectory anchor satisfies
+\begin{equation}
+  \boxed{\bigl\|v_l^{(t+1)}-v_l^{(t)}\bigr\|
+  \le \frac{2C_\Sigma}{\gamma_{\min}}\eta_t}
+  \label{eq:stability-bound}
+\end{equation}
+and, by summing over epochs,
+$\|v_l^{(t+m)}-v_l^{(t)}\| \le (2C_\Sigma/\gamma_{\min})
+\sum_{s=t}^{t+m-1}\eta_s.$
+\end{theorem}
+
+The proof applies the Davis--Kahan $\sin\Theta$
+theorem~\cite{daviskahan}; details in
+App.~\ref{app:proof-stability}. The corollary applies to any
+uniformly bounded base ranking score, so the stability statement
+for the \textsc{TADS} criterion is not specific to the calibrated
+utility of Eq.~\ref{eq:calibrated}. Empirical verification across
+1{,}496 layer-refresh measurements (App.~\ref{app:thm-verification})
+confirms the bound is non-vacuous.

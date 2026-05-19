@@ -1,0 +1,104 @@
+% =====================================================================
+%  Section 2: Related Work
+% =====================================================================
+\section{Related Work}
+\label{sec:related}
+
+Instruction-tuning data selection has been studied through both
+static and dynamic criteria. Quality-based methods assign each
+candidate a global utility score, either using a strong external
+judge, as in AlpaGasus~\cite{alpagasus}, or a learned quality
+estimator, as in CPQS~\cite{cpqs2026}. These methods are simple and
+task-agnostic, but a single pool-level ranking cannot adapt to a
+target capability or to the model's changing state during training.
+
+Target-conditioned methods define usefulness relative to examples
+that represent a desired capability. Influence- and gradient-based
+approaches such as LESS~\cite{less} score candidates by their
+gradient similarity to a small validation or few-shot target set,
+while Approx-LESS~\cite{approxless} improves scalability by
+predicting influence scores from a subset of gradient features.
+Another line uses representation geometry rather than gradients:
+NAIT~\cite{nait2026} extracts hidden-state capability directions
+from in-domain seed examples and selects candidates aligned with
+those directions. These approaches can produce capability-aligned
+subsets, but their selection criterion is fixed before training and
+depends on seed or validation examples supplied by the practitioner.
+
+\paragraph{Composite-reward dynamic selection.}
+A separate line treats data selection as a sequential decision
+problem and re-estimates per-candidate utility during training. The
+composite-reward family~\cite{kung2023activeit, sun2025dots,
+jha2025rl} combines loss-based difficulty $\mathcal{L}_i$ and
+entropy-based uncertainty $\mathcal{H}_i$ into a single per-sample
+scalar $\mathcal{R}_i = w\mathcal{L}_i + (1-w)\mathcal{H}_i$ with a
+variance-ratio weight $w$, and ranks candidates by this scalar.
+Some of these methods additionally train a policy network
+(typically a PPO actor-critic) on top of the composite reward;
+others use it directly. \textsc{TADS} adopts the composite-reward
+construction unchanged as its base utility signal but applies a
+deterministic pool-level normalisation and adds a representation-
+level structural factor.
+
+\paragraph{Dynamic data selection for RL fine-tuning.}
+A closely related but experimentally non-comparable line studies
+dynamic data selection for RL fine-tuning with verifiable rewards
+(RLVR). DOTS~\cite{sun2025dots} targets GRPO training by selecting
+questions whose \emph{adaptive difficulty} -- the policy-dependent
+rollout failure rate -- is close to one half, where binary reward
+variation yields the strongest group-relative gradient signal. DOTS
+is therefore an effective dynamic question-selection method for
+RLVR, but its signal is defined through rollout groups, verifiable
+rewards, and a learned difficulty predictor.
+
+DOTS and \textsc{TADS} share the principle of \emph{per-epoch
+re-estimation of per-candidate utility}, but they are not
+interchangeable baselines. DOTS selects RLVR questions under GRPO;
+\textsc{TADS} re-ranks supervised instruction--response pairs under
+SFT. Applying DOTS to our setting would require converting SFT data
+into verifiable RLVR questions and adding reward design, rollout
+generation, and difficulty prediction, thereby changing the
+objective, data unit, supervision source, and compute profile. We
+therefore treat DOTS as the closest dynamic selector in a different
+training regime, not as a directly runnable baseline for dynamic
+SFT data selection.
+
+\paragraph{Positioning of \textsc{TADS}.}
+The central contribution of \textsc{TADS} is the \emph{trajectory
+anchor}: a per-layer capability direction extracted online from
+the model's own hidden-state trajectory at each refresh step. The
+anchor is what makes \textsc{TADS} representation-aware where
+prior composite-reward dynamic selectors are not, and what
+distinguishes it from static representation-based methods whose
+capability directions are fixed before training and depend on seed
+or target examples. Unlike static directions, the anchor is
+re-extracted from the candidate pool itself at every epoch as the
+model's hidden states evolve; unlike scalar composite rewards, it
+captures direction in representation space rather than only
+magnitude.
+
+Around this anchor, \textsc{TADS} reuses the standard
+composite-reward signal $\mathcal{R}_i^{(t)} = w^{(t)}\mathcal{L}_i^{(t)} + (1-w^{(t)})\mathcal{H}_i^{(t)}$ from prior
+dynamic-selection work~\cite{kung2023activeit, sun2025dots} in a
+supporting role, without any extra transform. The selection score
+is the unmodified composite reward multiplied by the
+trajectory-anchor factor:
+\[
+s_i^{(t)}
+=
+\mathcal{R}_i^{(t)}
+\left(
+1+\lambda\,\widetilde{\mathrm{align}}_i^{(t)}
+\right),
+\]
+in which the trajectory-anchor factor on the right is the novel
+structural component; the composite-reward factor on the left
+is the per-candidate magnitude signal carried over from prior
+work. Setting $\lambda=0$ disables the anchor and recovers the
+composite-reward ranking alone, yielding a clean ablation that
+isolates the anchor's contribution. Crucially, the trajectory
+anchor is defined independently of $\mathcal{R}_i^{(t)}$; the
+stability guarantee we prove in Sec.~\ref{sec:method-theory}
+therefore concerns the structural component introduced by
+\textsc{TADS}, and applies to any uniformly bounded base ranking
+score on the left.

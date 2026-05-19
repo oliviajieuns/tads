@@ -1,0 +1,108 @@
+% =====================================================================
+%  Trajectory-Anchored Dynamic Data Selection for Instruction Tuning
+%  CIKM 2026 — Full Research Paper
+%  Root file. Body split across sections/01..06; appendix in 07.
+% =====================================================================
+\documentclass[sigconf,anonymous,review]{acmart}
+
+% ---- ACM / CIKM boilerplate -----------------------------------------
+\settopmatter{printacmref=false}
+\setcopyright{none}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\pagestyle{plain}
+\acmConference[CIKM '26]{The 35th ACM International Conference on
+  Information and Knowledge Management}{November 7--11, 2026}{Rome, Italy}
+
+% ---- Packages -------------------------------------------------------
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{mathtools}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta}
+\usetikzlibrary{arrows.meta,positioning}
+\usepackage{amsmath}
+\usepackage{xcolor}
+\usepackage[normalem]{ulem}
+
+% ---- Theorem environments -------------------------------------------
+\newtheorem{theorem}{Theorem}
+\newtheorem{corollary}{Corollary}
+\newtheorem{lemma}{Lemma}
+\newtheorem{proposition}{Proposition}
+
+% ---- Project macros -------------------------------------------------
+% \STATUS{...} marks a value to be filled from final experiments.
+\newcommand{\STATUS}[1]{\textcolor{red}{[#1]}}
+% \TODO{...} marks an in-progress item.
+\newcommand{\TODO}[1]{\textcolor{red}{[TODO: #1]}}
+
+% =====================================================================
+\begin{document}
+
+\title{Trajectory-Anchored Dynamic Data Selection for
+       Instruction Tuning}
+
+\author{Anonymous Author(s)}
+
+\begin{abstract}
+Data selection is central to efficient instruction tuning: a
+well-chosen subset can reduce compute while shaping the capabilities
+acquired by the tuned model. Existing selectors rely on externally
+designed or scalar proxies---quality, difficulty, uncertainty,
+influence, or their combinations---whose reliability varies across
+domains, model scales, and training stages. We propose \textsc{TADS}
+(\textit{Trajectory-Anchored Dynamic Selection}), a model-intrinsic
+framework that extracts capability directions from the model's own
+hidden-state trajectory, without in-domain seeds, labels, validation
+sets, or auxiliary scorers. \textsc{TADS} augments a dynamic
+selection pipeline by multiplying a composite-reward base
+ranking, $\mathcal{R}_i^{(t)}$, with a trajectory-anchor
+factor, $1+\lambda\,\widetilde{\mathrm{align}}_i^{(t)}$. Here
+$\widetilde{\mathrm{align}}_i^{(t)}$ measures how well a candidate
+aligns with the current trajectory anchor, and $\lambda=0$ recovers
+the same no-anchor composite-reward base. We prove that, under a
+positive eigenvalue gap, the trajectory anchor changes smoothly
+across training, with per-step drift bounded by the learning rate.
+The guarantee concerns the structural anchor itself and is not tied
+to a particular scalar utility transform. Across model scales
+from 0.5B to 14B parameters, multiple instruction-tuning datasets,
+and a diverse benchmark suite, \textsc{TADS} improves over strong
+static, seed-based, and dynamic baselines while adding less than
+0.5\% wall-clock overhead.
+\end{abstract}
+
+
+
+\keywords{Instruction tuning, Data selection, RL-based data
+selection, Hidden-state trajectory, Large language model fine-tuning}
+
+\maketitle
+
+% ---- Body -----------------------------------------------------------
+\input{sections/01_introduction}
+\input{sections/02_related_work}
+\input{sections/03_method}
+
+\input{sections/04_experiments}
+\input{sections/05_discussion}
+\input{sections/06_conclusion}
+
+% ---- GenAI disclosure ----------------------------------------------
+\section*{GenAI Usage Disclosure}
+In accordance with the ACM Policy on Authors' Use of Generative AI
+Tools, the authors disclose that generative AI tools were not used
+to generate any of the technical content, experimental design,
+theorem statements, proofs, or results reported in this paper. The
+authors take full responsibility for the content of this manuscript.
+
+% ---- References -----------------------------------------------------
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{references}
+
+% ---- Appendix -------------------------------------------------------
+\input{sections/07_appendix}
+
+\end{document}

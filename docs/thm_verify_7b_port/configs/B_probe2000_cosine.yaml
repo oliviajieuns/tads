@@ -1,0 +1,34 @@
+# 7B App. F cell B: TADS + cosine + probe 2000 (33m repo format).
+defaults:
+  - configs/base.yaml
+  - configs/methods/tads.yaml
+  - configs/models/qwen2.5-7b.yaml
+  - configs/modes/lora.yaml
+
+output_subdir: thm_verify_7b/qwen25/B_probe2000_cosine
+selection_ratio: 0.10
+train_epochs: 3
+episode_batch_size: 8
+# qwen2.5-7b.yaml overrides learning_rate to 1e-5; bump back to 2e-4 for
+# verifier study (we need a recognisable cosine tail, not the SFT default).
+learning_rate: 2.0e-4
+warmup_ratio: 0.10
+
+# Trajectory-anchor probe size = 2000 (cell B protocol).
+anchor:
+  layer_indices: all
+  layer_idx: -1
+  max_samples_for_pca: 2000
+  pca_batch_size: 8
+
+# Theorem 1 verifier — the block name matches train.py's
+# cfg.get("verification") and TheoremVerificationConfig.from_cfg.
+verification:
+  enabled: true
+  refresh_every_optstep: 25
+  save_anchors: true
+  track_delta_sigma: true
+  probe_size: 2000
+  probe_seed: 4242
+  output_subdir: thm_verification
+  record_baseline: true

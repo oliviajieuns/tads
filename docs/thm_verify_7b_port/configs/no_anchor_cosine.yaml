@@ -1,0 +1,38 @@
+# 7B matched no-anchor control (lambda=0, no anchor) -- Fig.2 grey curve.
+# Uses the data_agent method (lam=0) so it slots right into the existing
+# selection dispatch. Verifier still records the anchor diagnostic post-hoc.
+defaults:
+  - configs/base.yaml
+  - configs/methods/data_agent.yaml
+  - configs/models/qwen2.5-7b.yaml
+  - configs/modes/lora.yaml
+
+output_subdir: thm_verify_7b/qwen25/no_anchor_cosine
+selection_ratio: 0.10
+train_epochs: 3
+episode_batch_size: 8
+
+learning_rate: 2.0e-4
+warmup_ratio: 0.10
+
+# IMPORTANT: anchor block kept for the verifier to read v_l^(t) post-hoc.
+# Selection itself does not use the anchor (data_agent method).
+anchor:
+  layer_indices: all
+  layer_idx: -1
+  max_samples_for_pca: 2000
+  pca_batch_size: 8
+
+# Verifier instrumentation -- only fires when method == "tads".
+# For the matched-no-anchor control we cannot use the standard hook.
+# Instead, see PORT_INSTRUCTIONS.md section 4 for the one-line patch
+# that enables verifier on data_agent too (drops the method check).
+verification:
+  enabled: true
+  refresh_every_optstep: 25
+  save_anchors: true
+  track_delta_sigma: true
+  probe_size: 2000
+  probe_seed: 4242
+  output_subdir: thm_verification
+  record_baseline: true

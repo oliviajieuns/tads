@@ -1,0 +1,33 @@
+# 7B App. F cell D: TADS + constant lr + probe 2000 (33m repo format).
+defaults:
+  - configs/base.yaml
+  - configs/methods/tads.yaml
+  - configs/models/qwen2.5-7b.yaml
+  - configs/modes/lora.yaml
+
+output_subdir: thm_verify_7b/qwen25/D_probe2000_constant
+selection_ratio: 0.10
+train_epochs: 3
+episode_batch_size: 8
+
+# Constant lr, no warmup -- makes A1 cleanly testable as a Lipschitz constant.
+learning_rate: 2.0e-4
+warmup_ratio: 0.0
+# If base.yaml hands "cosine" to scheduler unconditionally, also set this:
+# scheduler: constant     # uncomment if your sft.py reads it
+
+anchor:
+  layer_indices: all
+  layer_idx: -1
+  max_samples_for_pca: 2000
+  pca_batch_size: 8
+
+verification:
+  enabled: true
+  refresh_every_optstep: 25
+  save_anchors: true
+  track_delta_sigma: true
+  probe_size: 2000
+  probe_seed: 4242
+  output_subdir: thm_verification
+  record_baseline: true

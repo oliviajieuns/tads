@@ -1,6 +1,6 @@
 # 노드 가동 현황 — 2026-05-21
 
-CIKM 2026 deadline (5/23) D-2. 14B scaling 마무리 + 14B base baseline 신규 추가.
+CIKM 2026 deadline (5/23) D-2. 14B scaling 마무리 + 14B base baseline + **Evol-Instruct appendix 풀가동**.
 
 ---
 
@@ -63,7 +63,30 @@ Instruction tuning 전 Qwen2.5-14B 의 raw 점수. 14B scaling 표의 lower boun
 
 | 노드 | Cell | 상태 |
 |---|---|---|
-| **1109402-tads5** | base eval (LLaMA-2-7B, no FT) | ✅ 8 bench 완료 (MBPP=0 footnote 처리됨) |
+| ~~1109402-tads5~~ | base eval (LLaMA-2-7B, no FT) | ✅ 8 bench 완료 (MBPP=0 footnote 처리됨) → **Evol full_100 +3 bench 로 전환** |
+
+---
+
+## 🆕 Evol-Instruct Appendix (LLaMA-2-7B × WizardLM Evol-Instruct 70K) — **NEW**
+
+dataset: `/group-volume/IT-datasets/wizardlm_evol_instruct_70k/alpaca_evol_instruct_70k.json` (70K)  
+model: `/group-volume/nait-models/Llama-2-7b-hf`, mode: **full FT**, prompt_style: `llama_user_assistant`
+
+| 노드 | Cell | 작업 | 상태 / ETA |
+|---|---|---|---|
+| **1109402-tads5** | full_100 (eval) | svamp/mbpp/xquad 3 bench 추가 | ETA ~1-2h → 5/21 오전 완료 |
+| **1109879** | random_10 (eval) | 8 bench 처음부터 | ETA ~4-6h → 5/21 오후 완료 |
+| **1109881** | tads_10 (학습) | full FT, bs=4 ga=32 (effective 128), 3 epoch | ETA ~24-30h → **5/22 오후~저녁** |
+
+학습 log: `/group-volume/jieuns/tads-checkpoints/evol_7b/llama2/tads_10/launch_20260521_081801.log`
+
+**기존 (5/14 완료)**: full_100 (5/8 bench 옛 결과, 동료 본), random_10 (학습 ✅ eval 0), data_agent_10 (학습 ❌)
+
+⚠️ **time risk**: 1-GPU full FT 7B 가 원본 4-GPU DDP 보다 4x 느림. 5/22 새벽까지 epoch 1 도 못 끝나면 LoRA 모드로 switch 결정.
+
+**output**:
+- eval: `/group-volume/jieuns/tads-eval-results/llama2_evol/<cell>/runs/<tag>/`
+- 학습: `/group-volume/jieuns/tads-checkpoints/evol_7b/llama2/tads_10/runs/<tag>/`
 
 ---
 
@@ -83,6 +106,9 @@ Instruction tuning 전 Qwen2.5-14B 의 raw 점수. 14B scaling 표의 lower boun
 | **14B base no-FT** | **scaling 표 lower bound (신규)** |
 | 14B random_10 (옛 ckpt) | scaling 표 random 행 |
 | 14B tads_10 (학습 후) | scaling 표 TADS 행 |
+| **Evol-Instruct full_100** | **Appendix Evol upper bound** (8 bench 완성 후) |
+| **Evol-Instruct random_10** | **Appendix Evol random 행** |
+| **Evol-Instruct tads_10** | **Appendix Evol TADS 행** (5/22 학습 완료 후) |
 
 ---
 
@@ -90,9 +116,12 @@ Instruction tuning 전 Qwen2.5-14B 의 raw 점수. 14B scaling 표의 lower boun
 
 | 시각 | 이정표 |
 |---|---|
-| **오늘 14:00~17:00** | 14B base eval 완료 |
-| **오늘 14:00~15:00** | 14B random_10 eval (1109879) 완료 |
+| **오늘 09:30~10:30** | Evol full_100 +3 bench (1109402) 완료 |
+| **오늘 14:00~17:00** | 14B base eval (1109350) 완료 |
+| **오늘 12:00~14:00** | Evol random_10 8 bench (1109879) 완료 |
+| **오늘 14:00~15:00** | 14B random_10 eval 완료 |
 | **5/22 새벽** | 14B tads_10 학습 완료 → 즉시 eval launch |
 | **5/22 점심** | 14B tads_10 eval 완료 → scaling 표 채움 |
-| **5/22** | paper 마무리, draft 정리 |
-| **5/23** | 제출 |
+| **5/22 오후~저녁** | Evol tads_10 학습 완료 (1109881) → eval launch |
+| **5/22 밤** | Evol tads_10 eval 완료 → Evol appendix 채움 |
+| **5/23** | paper 마무리 + 제출 |
